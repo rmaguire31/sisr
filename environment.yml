@@ -1,0 +1,11 @@
+name: preproc
+channels: 
+  - conda-forge
+  - pytorch
+dependencies:
+  - numpy
+  - opencv
+  - torchvision
+  - pytorch
+  - pip:
+    - git+git://github.com/Po-Hsun-Su/pytorch-ssim.git@master
