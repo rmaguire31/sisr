@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tool for training SiSR PyTorch Network
 """
+
 import argparse
 import json
 import logging

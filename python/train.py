@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tool for testing SiSR PyTorch Network
 """
+
 import argparse
 import json
 import logging
