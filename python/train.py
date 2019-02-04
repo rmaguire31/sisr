@@ -45,8 +45,8 @@ def build_parser():
     parser.add_argument('--learning_rate', '--lr', type=float, default=1e-4,
         help="Initial learning rate.")
 
-    parser.add_argument('--num_filters', type=int, default=64,
-        help="How many filters in each convolutional layer.")
+    parser.add_argument('--num_features', type=int, default=64,
+        help="How many features are extracted by the convolutional layers.")
 
     parser.add_argument('--num_resblocks', type=int, default=8,
         help="How many residual learning blocks to use.")

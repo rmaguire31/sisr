@@ -1,4 +1,4 @@
-"""PyTorch loss criteria for SiSR super-resolution network
+"""PyTorch loss utilities for SiSR super-resolution network
 """
 
 import logging
