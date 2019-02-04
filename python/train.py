@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader
 
 import sisr
 import sisr.data
+import sisr.models
+import sisr.loss
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,10 @@ def build_parser():
 
     parser.add_argument('--step_size', type=int, default=int(2e5),
         help="Number of epochs between scheduled learning rate updates.")
+
+    parser.add_argument('--upsample', type=str.lower, default='nearest', 
+        choices={'nearest', 'shuffle'},
+        help="Upsampling method to use in feed forward network.")
 
     parser.add_argument('--weight_norm', action='store_true',
         help="Enable weight normalisation. See "

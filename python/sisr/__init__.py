@@ -30,8 +30,8 @@ class ConfigureLogging(argparse.Action):
             raise ValueError("const is not allowed")
         if nargs is not None:
             raise ValueError("nargs is not allowed")
-        if type is not str:
-            raise ValueError("type must be str")
+        if type is not str.lower:
+            raise ValueError("type must be str.lower")
         if default in choices:
             logging.basicConfig(level=vars(logging)[default])
         super().__init__(type=type, choices=choices, help=help, **kwargs)
