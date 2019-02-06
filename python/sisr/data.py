@@ -12,6 +12,9 @@ from PIL import Image
 from torch.utils.data import Dataset as BaseDataset
 
 
+__all__ = 'Dataset', 'JointRandomTransform'
+
+
 logger = logging.getLogger(__name__)
 
 

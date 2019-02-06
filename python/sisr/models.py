@@ -9,6 +9,9 @@ from torch.nn import functional as F
 from torchvision import models
 
 
+___all___ = 'Discriminator', 'FeatureExtractor', 'SiSR'
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,7 +60,6 @@ class FeatureExtractor(nn.Module):
         self.features = nn.ModuleList(
             nn.ReLU(inplace=False) if isinstance(layer, nn.ReLU) else layer
             for layer in layers)
-
 
     def forward(self, x, names=set()):
 
@@ -111,8 +113,8 @@ class ResidualBlock(nn.Module):
         return x
 
 
-class Generator(nn.Module):
-    """Generator network
+class SiSR(nn.Module):
+    """SiSR generator network
     """
 
     def __init__(self,
@@ -179,7 +181,7 @@ class Generator(nn.Module):
 
 
 class BasicBlock(nn.Sequential):
-    """
+    """Downscaling block for discriminator
     """
 
     def __init__(self,
@@ -202,7 +204,7 @@ class BasicBlock(nn.Sequential):
 
 
 class Discriminator(nn.Module):
-    """
+    """Discriminator for SiSR, borrowed from 
     """
 
     def __init__(self, num_channels=1, kernel_size=3):

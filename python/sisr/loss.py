@@ -11,11 +11,16 @@ from torch.nn import functional as F
 import sisr.models
 
 
+___all___ = 'CombinedContentLoss',
+
+
+
 logger = logging.getLogger(__name__)
 
 
+
 class CombinedContentLoss(nn.Module):
-    """
+    """Computes the combined content loss defined by a configuration dict
     """
 
     def __init__(self, cfg={}):
