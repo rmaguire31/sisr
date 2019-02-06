@@ -56,7 +56,7 @@ class FeatureExtractor(nn.Module):
         # extract arbitrary features
         self.features = nn.ModuleList(
             nn.ReLU(inplace=False) if isinstance(layer, nn.ReLU) else layer
-            for l in layers)
+            for layer in layers)
 
 
     def forward(self, x, names=set()):
@@ -64,8 +64,7 @@ class FeatureExtractor(nn.Module):
         # Make sure names are valid
         names = set(names)
         if not names.issubset(self.names):
-            raise ValueError(
-                "Unknown layer name %s" %', '.join(names - set(self.names)))
+            logger.warning("Unknown feature names: %r", names - set(self.names))
 
         # Make sure greyscale images have three channels
         x = x.expand(-1,3,-1,-1)
@@ -190,7 +189,8 @@ class BasicBlock(nn.Sequential):
             alpha=1e-2,
             stride=2,
         ):
-        layers = [nn.Conv2d(in_channels, out_channels, kernel_size)]
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size)]
         if in_channels > 3:
             layers.append(nn.BatchNorm2d(out_channels))
         layers.extend((
