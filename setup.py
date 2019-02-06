@@ -17,7 +17,7 @@ setup(
     name='sisr',
     version='0.1.0.dev0',
     description=__doc__,
-    long_description=,
+    long_description=long_description,
     author='rsm',
     author_email='rmaguire31@gmail.com',
     keywords='deep-learning PyTorch torch machine_learning deep-learning '
