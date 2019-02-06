@@ -19,14 +19,12 @@ logger = logging.getLogger(__name__)
 
 
 class Dataset(BaseDataset):
-    """
+    """Paired dataset of input and target images
     """
 
     FILE_EXTENSIONS = {'png', 'PNG', 'jpg', 'JPG'}
 
     def __init__(self, data_dir, transform=None):
-        """
-        """
         self.transform = transform
 
         filenames = set()
@@ -68,13 +66,9 @@ class Dataset(BaseDataset):
         self.filenames = sorted(filenames)
 
     def __len__(self):
-        """
-        """
         return len(self.filenames)
 
     def __getitem__(self, idx):
-        """
-        """
         input_filename, target_filename = self.filenames[idx]
 
         # Open PIL Images
@@ -88,20 +82,18 @@ class Dataset(BaseDataset):
 
 
 class JointRandomTransform:
-    """
+    """Apply the same to two input and target images with different scales
+
+    Applies random crop, flip and rotation
     """
 
     def __init__(self, input_size=None):
-        """
-        """
         if input_size is None:
             self.crop_width = self.crop_height = None
         else:
             self.crop_width, self.crop_height = input_size
 
     def __call__(self, input, target):
-        """
-        """
         # Random patch extraction
         if self.crop_width is not None and self.crop_height is not None:
             
