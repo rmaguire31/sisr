@@ -5,10 +5,11 @@
 import argparse
 import json
 import logging
+import sys
 
 from torch.utils.data import DataLoader
 
-import sisr
+import sisr.bin
 import sisr.data
 
 
@@ -19,7 +20,7 @@ def build_parser():
     """Build CLI Parser for with options for test.py
     """
     # Inherit package arguments
-    parents = sisr.build_parser(),
+    parents = sisr.bin.build_parser(),
 
     parser = argparse.ArgumentParser(
         description="Test SiSR super-resolution network",
@@ -50,8 +51,9 @@ def test(options):
         # TODO<rsm>: log
 
 
-if __name__ == '__main__':
-
+def main():
+    """Entry point
+    """
     # Command line interface
     parser = build_parser()
     options = parser.parse_args()
@@ -60,3 +62,7 @@ if __name__ == '__main__':
     logger.info("Options: %s", options_json)
 
     test(options)
+
+
+if __name__ == '__main__':
+    main()

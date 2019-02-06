@@ -11,13 +11,13 @@ services:
       - ${DATA_DIR:-/media/rsm/Data/dataset}:/storage/data
       - ${LOG_DIR:-/home/rsm/Data/logs}:/storage/logs
     command: >
-      "python train.py \
+      "train.py \
         --log_dir /storage/logs \
         --data_dir /storage/data"
 
   test:
     extends: train
     command: >
-      "python test.py \
+      "test.py \
         --log_dir /storage/logs \
         --data_dir /storage/data"

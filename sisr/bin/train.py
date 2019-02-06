@@ -5,12 +5,13 @@
 import argparse
 import json
 import logging
+import sys
 
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 
-import sisr
+import sisr.bin
 import sisr.data
 import sisr.models
 import sisr.loss
@@ -23,7 +24,7 @@ def build_parser():
     """Build CLI parser with options for train.py
     """
     # Inherit package arguments
-    parents = sisr.build_parser(),
+    parents = sisr.bin.build_parser(),
 
     parser = argparse.ArgumentParser(
         description="Train SiSR super-resolution network",
@@ -118,8 +119,9 @@ def train(options):
         # TODO<rsm>: descend gradients
 
 
-if __name__ == '__main__':
-
+def main():
+    """Entry point
+    """
     # Command line interface
     parser = build_parser()
     options = parser.parse_args()
@@ -128,3 +130,7 @@ if __name__ == '__main__':
     logger.info("Options: %s", options_json)
 
     train(options)
+
+
+if __name__ == '__main__':
+    main()

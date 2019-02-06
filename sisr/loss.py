@@ -14,9 +14,7 @@ import sisr.models
 ___all___ = 'CombinedContentLoss',
 
 
-
 logger = logging.getLogger(__name__)
-
 
 
 class CombinedContentLoss(nn.Module):

@@ -1,4 +1,4 @@
-"""Package for SiSR PyTorch Network
+"""Common cli utilities
 """
 
 import argparse
@@ -18,7 +18,7 @@ class ConfigureLogging(argparse.Action):
         self,
         nargs=None,
         const=None,
-        type=str,
+        type=str.upper,
         choices={'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'},
         default=None,
         help="Set logging level.",
@@ -30,8 +30,8 @@ class ConfigureLogging(argparse.Action):
             raise ValueError("const is not allowed")
         if nargs is not None:
             raise ValueError("nargs is not allowed")
-        if type is not str.lower:
-            raise ValueError("type must be str.lower")
+        if type is not str.upper:
+            raise ValueError("type must be str.upper")
         if default in choices:
             logging.basicConfig(level=vars(logging)[default])
         super().__init__(type=type, choices=choices, help=help, **kwargs)
