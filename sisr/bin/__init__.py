@@ -54,6 +54,9 @@ def build_parser():
     parser.add_argument('--batch_size', type=int, default=16,
         help="How many samples per batch to load.")
 
+    parser.add_argument('--checkpoint', type=str,
+        help="Checkpoint file to load.")
+
     parser.add_argument('--data_dir', type=str, required=True,
         help="Path to directory containing dataset.")
 
@@ -73,5 +76,8 @@ def build_parser():
     parser.add_argument('--num_workers', type=int, default=1,
         help="How many subprocesses to use for data loading. 0 means that the "
              "data will be loaded in the main process.")
+
+    parser.add_argument('--seed', type=int, default=1234,
+        help="Seed for torch random number generators.")
 
     return parser

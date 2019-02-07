@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
-"""Tool for testing SiSR PyTorch Network
+"""SiSR PyTorch Network training entry-point
 """
 
 import argparse
 import json
 import logging
-import sys
-
-from torch.optim import Adam, SGD
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.data import DataLoader
 
 import sisr.bin
-import sisr.data
-import sisr.models
-import sisr.loss
+from sisr.run import Trainer
 
 
 logger = logging.getLogger(__name__)
@@ -30,10 +23,6 @@ def build_parser():
         description="Train SiSR super-resolution network",
         parents=parents)
 
-    parser.add_argument('--adam', action='store_true',
-        help="Enable Adam for stochastic optimisation. See "
-             "https://arxiv.org/pdf/1412.6980.pdf")
-
     parser.add_argument('--adam_betas', type=float, nargs=2,
         default=(0.9, 0.999),
         help="Adam coefficients used for computing running averages of "
@@ -43,7 +32,31 @@ def build_parser():
         help="Adam term added to the denominator to improve numerical "
              "stability. See https://arxiv.org/pdf/1412.6980.pdf")
 
-    parser.add_argument('--learning_rate', '--lr', type=float, default=1e-4,
+    parser.add_argument('--discriminator_adam_betas', type=float, nargs=2,
+        default=(0.9, 0.999),
+        help="Adam coefficients used for computing running averages of "
+             "gradient and its square. See https://arxiv.org/pdf/1412.6980.pdf")
+
+    parser.add_argument('--discriminator_adam_epsilon', type=float, default=1e-8,
+        help="Adam term added to the denominator to improve numerical "
+             "stability. See https://arxiv.org/pdf/1412.6980.pdf")
+
+    parser.add_argument('--discriminator_lr', '--discriminator_learning_rate',
+        type=float, default=1e-4,
+        help="Initial learning rate for discriminator.")
+
+    parser.add_argument('--discriminator_optim', '--discriminator_optimiser',
+        '--discriminator_optimizer', type=str.lower, default='adam',
+        choices={'adam', 'sgd'},
+        help="Method for stochastic optimisation. For details on Adam, see "
+             "https://arxiv.org/pdf/1412.6980.pdf")
+
+    parser.add_argument('--loss_configuration', '--loss_config', '--loss_cfg',
+        type=json.loads, required=True,
+        help="JSON string defining the various loss components used in to "
+             "the SiSR generator network.")
+
+    parser.add_argument('--lr', '--learning_rate', type=float, default=1e-4,
         help="Initial learning rate.")
 
     parser.add_argument('--num_features', type=int, default=64,
@@ -51,6 +64,14 @@ def build_parser():
 
     parser.add_argument('--num_resblocks', type=int, default=8,
         help="How many residual learning blocks to use.")
+
+    parser.add_argument('--max_epochs', type=int, default=10000,
+        help="Training is automatically stopped after this many epochs.")
+
+    parser.add_argument('--optim', '--optimiser', '--optimizer', type=str.lower,
+        default='adam', choices={'adam', 'sgd'},
+        help="Method for stochastic optimisation. For details on Adam, see "
+             "https://arxiv.org/pdf/1412.6980.pdf")
 
     parser.add_argument('--scale_factor', type=float, default=4,
         help="Linear upscaling factor of super-resolution network.")
@@ -72,64 +93,13 @@ def build_parser():
     return parser
 
 
-def train(options):
-    """Train network
-    """
-    # Dataloader
-    transform = sisr.data.JointRandomTransform(
-        input_size=options.input_size)
-    dataset = sisr.data.Dataset(options.data_dir, transform=transform)
-    dataloader = DataLoader(dataset,
-        num_workers=options.num_workers,
-        batch_size=options.batch_size)
-
-    # TODO<rsm>: load network from sisr.model
-    from torch import nn
-    net = nn.Sequential(
-        nn.Conv2d(1, options.num_filters, 3),
-        nn.Upsample(scale_factor=options.scale_factor),
-        nn.Conv2d(options.num_filters, 1, 3))
-
-    # Optimiser
-    if options.adam:
-        optimiser = Adam(net.parameters(),
-            lr=options.learning_rate,
-            betas=options.adam_betas,
-            eps=options.adam_epsilon)
-    else:
-        optimiser = SGD(net.parameters(),
-            lr=options.learning_rate)
-
-    # Learning rate scheduler
-    scheduler = StepLR(optimiser,
-        step_size=options.step_size,
-        gamma=options.step_gamma)
-
-    for iteration, (inputs, targets) in enumerate(dataloader):
-        
-        # Copy inputs and targets to the correct device
-        inputs = inputs.to(options.device)
-        targets = targets.to(options.device)
-
-        logger.info("Iteration: %d, inputs: %r, targets: %r",
-                    iteration, inputs.size(), targets.size())
-        # TODO<rsm>: run inference
-        # TODO<rsm>: calculate loss
-        # TODO<rsm>: backpropagate gradients
-        # TODO<rsm>: descend gradients
-
-
 def main():
     """Entry point
     """
     # Command line interface
     parser = build_parser()
     options = parser.parse_args()
-
-    options_json = json.dumps(vars(options), sort_keys=True, indent=2)
-    logger.info("Options: %s", options_json)
-
-    train(options)
+    Trainer(options).run()
 
 
 if __name__ == '__main__':

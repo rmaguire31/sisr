@@ -21,7 +21,7 @@ class CombinedContentLoss(nn.Module):
     """Computes the combined content loss defined by a configuration dict
     """
 
-    def __init__(self, cfg={}):
+    def __init__(self, config={}):
         super().__init__()
 
         self.feature_names = set()
@@ -29,10 +29,10 @@ class CombinedContentLoss(nn.Module):
         self.contextual_weights = {}
         self.perceptual_weights = {}
 
-        for component, weights in cfg.items():
+        for component, weights in config.items():
 
             # Sanity check weights
-            value_error = ValueError("Argument cfg should be a dict of dicts "
+            value_error = ValueError("Argument config should be a dict of dicts "
                                      "or floats, not %r", weights)
             if isinstance(weights, dict):
                 if not all([
@@ -70,6 +70,7 @@ class CombinedContentLoss(nn.Module):
 
         if self.feature_names:
             self.feature_extractor = sisr.models.FeatureExtractor()
+            self.feature_extractor.train(False)
 
             if not self.feature_names.issubset(self.feature_extractor.names):
 
