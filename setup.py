@@ -1,7 +1,8 @@
-"""SiSR PyTorch Network for super-resolution in semiconductor device inspection
+"""SiSR package installer
 """
 
 import os
+import sisr
 
 from setuptools import setup, find_packages
 
@@ -15,10 +16,10 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='sisr',
-    version='0.1.0.dev0',
-    description=__doc__,
+    version=sisr.__version__,
+    description=sisr.__doc__,
     long_description=long_description,
-    author='rsm',
+    author='rmaguire31',
     author_email='rmaguire31@gmail.com',
     keywords='deep-learning PyTorch torch machine_learning deep-learning '
         'super-resolution silicon semiconductor inspection SiSR EDSR WDSR',
