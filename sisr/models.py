@@ -9,10 +9,77 @@ from torch.nn import functional as F
 from torchvision import models
 
 
-___all___ = 'Discriminator', 'FeatureExtractor', 'SiSR'
+___all___ = 'Sisr', 'FeatureExtractor', 'Discriminator'
 
 
 logger = logging.getLogger(__name__)
+
+
+class Sisr(nn.Module):
+    """SiSR generator network
+    """
+
+    def __init__(self,
+            kernel_size=3,
+            num_channels=1,
+            num_features=64,
+            num_resblocks=8,
+            scale_factor=4,
+            weight_norm=True,
+            upscaling='nearest'
+        ):
+        super().__init__()
+
+        # Colour space to feature space
+        conv = nn.Conv2d(num_channels, num_features, kernel_size)
+        if weight_norm:
+            conv = nn.utils.weight_norm(conv)
+        self.head = nn.Sequential(conv)
+
+        # Residual body
+        self.body = nn.Sequential(*[
+            _ResidualBlock(num_features=num_features, weight_norm=weight_norm)
+            for _ in range(num_resblocks)])
+
+        # Upsample features, then feature space to colour space
+        upsample = []
+        while scale_factor > 1:
+
+            for sf in 3, 2:
+                if scale_factor % sf == 0:
+
+                    if upscaling == 'nearest':
+                        nearest = nn.Upsample(scale_factor=sf, mode='nearest')
+                        conv = nn.Conv2d(num_features, num_features, kernel_size)
+                        # Is this ReLU really needed
+                        relu = nn.ReLU(inplace=True)
+                        if weight_norm:
+                            conv = nn.utils.weight_norm(conv)
+
+                        upsample.append(nearest)
+                        upsample.append(conv)
+                        upsample.append(relu)
+
+                    elif upscaling == 'shuffle':
+                        conv = nn.Conv2d(
+                            num_features, num_features*sf**2, kernel_size)
+                        shuffle = nn.PixelShuffle(sf)
+                        if weight_norm:
+                            conv = nn.utils.weight_norm(conv)
+
+                        upsample.append(conv)
+                        upsample.append(shuffle)
+
+                    scale_factor /= sf
+
+        conv = nn.Conv2d(num_features, num_channels, kernel_size)
+        self.tail = nn.Sequential(*upsample, conv)
+
+    def forward(self, x):
+        x = self.head(x)
+        x += self.body(x)
+        x = self.tail(x)
+        return x
 
 
 class FeatureExtractor(nn.Module):
@@ -89,7 +156,33 @@ class FeatureExtractor(nn.Module):
         return f
 
 
-class ResidualBlock(nn.Module):
+class Discriminator(nn.Module):
+    """Discriminator for SiSR, borrowed from 
+    """
+
+    def __init__(self, num_channels=1, kernel_size=3):
+        super().__init__()
+
+        # Basic blocks
+        blocks = []
+        in_channels = num_channels
+        for out_channels in 64, 128, 256, 512:
+            blocks.append(
+                _BasicBlock(in_channels, out_channels, kernel_size))
+            in_channels = out_channels
+
+        # Fully convolutional final layer before avg pool
+        conv = nn.Conv2d(in_channels, 1, 1)
+
+        self.body = nn.Sequential(*blocks, conv)
+
+    def forward(self, x):
+        x = self.body(x)
+        # Dynamically sized avg pool
+        return F.sigmoid(F.avg_pool2d(x, x.size()[2:])).view(x.size()[0], -1)
+
+
+class _ResidualBlock(nn.Module):
     """Residual learning block
     """
 
@@ -113,74 +206,7 @@ class ResidualBlock(nn.Module):
         return x
 
 
-class SiSR(nn.Module):
-    """SiSR generator network
-    """
-
-    def __init__(self,
-            kernel_size=3,
-            num_channels=1,
-            num_features=64,
-            num_resblocks=8,
-            scale_factor=4,
-            weight_norm=True,
-            upscaling='nearest'
-        ):
-        super().__init__()
-
-        # Colour space to feature space
-        conv = nn.Conv2d(num_channels, num_features, kernel_size)
-        if weight_norm:
-            conv = nn.utils.weight_norm(conv)
-        self.head = nn.Sequential(conv)
-
-        # Residual body
-        self.body = nn.Sequential(*[
-            ResidualBlock(num_features=num_features, weight_norm=weight_norm)
-            for _ in range(num_resblocks)])
-
-        # Upsample features, then feature space to colour space
-        upsample = []
-        while scale_factor > 1:
-
-            for sf in 3, 2:
-                if scale_factor % sf == 0:
-
-                    if upscaling == 'nearest':
-                        nearest = nn.Upsample(scale_factor=sf, mode='nearest')
-                        conv = nn.Conv2d(num_features, num_features, kernel_size)
-                        # Is this ReLU really needed
-                        relu = nn.ReLU(inplace=True)
-                        if weight_norm:
-                            conv = nn.utils.weight_norm(conv)
-
-                        upsample.append(nearest)
-                        upsample.append(conv)
-                        upsample.append(relu)
-
-                    elif upscaling == 'shuffle':
-                        conv = nn.Conv2d(
-                            num_features, num_features*sf**2, kernel_size)
-                        shuffle = nn.PixelShuffle(sf)
-                        if weight_norm:
-                            conv = nn.utils.weight_norm(conv)
-
-                        upsample.append(conv)
-                        upsample.append(shuffle)
-
-                    scale_factor /= sf
-
-        conv = nn.Conv2d(num_features, num_channels, kernel_size)
-        self.tail = nn.Sequential(*upsample, conv)
-
-    def forward(self, x):
-        x = self.head(x)
-        x += self.body(x)
-        x = self.tail(x)
-        return x
-
-
-class BasicBlock(nn.Sequential):
+class _BasicBlock(nn.Sequential):
     """Downscaling block for discriminator
     """
 
@@ -201,29 +227,3 @@ class BasicBlock(nn.Sequential):
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(alpha, inplace=True)))
         return super().__init__(*layers)
-
-
-class Discriminator(nn.Module):
-    """Discriminator for SiSR, borrowed from 
-    """
-
-    def __init__(self, num_channels=1, kernel_size=3):
-        super().__init__()
-
-        # Basic blocks
-        blocks = []
-        in_channels = num_channels
-        for out_channels in 64, 128, 256, 512:
-            blocks.append(
-                BasicBlock(in_channels, out_channels, kernel_size))
-            in_channels = out_channels
-
-        # Fully convolutional final layer before avg pool
-        conv = nn.Conv2d(in_channels, 1, 1)
-
-        self.body = nn.Sequential(*blocks, conv)
-
-    def forward(self, x):
-        x = self.body(x)
-        # Dynamically sized avg pool
-        return F.sigmoid(F.avg_pool2d(x, x.size()[2:])).view(x.size()[0], -1)

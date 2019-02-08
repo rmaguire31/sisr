@@ -89,7 +89,7 @@ class CombinedContentLoss(nn.Module):
             target_features = self.feature_extractor(targets, self.feature_names)
 
         for feature_name, weight in self.contextual_weights.items():
-            loss -= weight * torch.log(contextual_similarity(
+            loss -= weight * torch.log(_contextual_similarity(
                 output_features[feature_name],
                 target_features[feature_name]))
 
@@ -101,7 +101,7 @@ class CombinedContentLoss(nn.Module):
         return loss
 
 
-def contextual_similarity(
+def _contextual_similarity(
         outputs,
         targets,
         eps1=1e-8,
@@ -154,7 +154,7 @@ def contextual_similarity(
     return C
 
 
-def gram_matrix(outputs):
+def _gram_matrix(outputs):
     """Computes the gram matrix, the inner product of a matrix with itself
     """
     # Apply operation batch wise

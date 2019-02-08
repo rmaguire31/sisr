@@ -57,7 +57,7 @@ def build_parser():
     parser.add_argument('--checkpoint', type=str,
         help="Checkpoint file to load.")
 
-    parser.add_argument('--data_dir', type=str, required=True,
+    parser.add_argument('--data_dir', type=str, required='/storage/dataset',
         help="Path to directory containing dataset.")
 
     parser.add_argument('--device', type=str, default='cuda:0', choices=devices,
@@ -79,5 +79,8 @@ def build_parser():
 
     parser.add_argument('--seed', type=int, default=1234,
         help="Seed for torch random number generators.")
+
+    parser.add_argument('--output_dir', type=str, default='/artifacts',
+        help="Path to directory containing dataset.")
 
     return parser

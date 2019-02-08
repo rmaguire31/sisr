@@ -45,9 +45,8 @@ def build_parser():
         type=float, default=1e-4,
         help="Initial learning rate for discriminator.")
 
-    parser.add_argument('--discriminator_optim', '--discriminator_optimiser',
-        '--discriminator_optimizer', type=str.lower, default='adam',
-        choices={'adam', 'sgd'},
+    parser.add_argument('--discriminator_optimiser', '--discriminator_optimizer',
+        type=str.lower, default='adam', choices={'adam', 'sgd'},
         help="Method for stochastic optimisation. For details on Adam, see "
              "https://arxiv.org/pdf/1412.6980.pdf")
 
@@ -68,7 +67,7 @@ def build_parser():
     parser.add_argument('--max_epochs', type=int, default=10000,
         help="Training is automatically stopped after this many epochs.")
 
-    parser.add_argument('--optim', '--optimiser', '--optimizer', type=str.lower,
+    parser.add_argument('--optimiser', '--optimizer', type=str.lower,
         default='adam', choices={'adam', 'sgd'},
         help="Method for stochastic optimisation. For details on Adam, see "
              "https://arxiv.org/pdf/1412.6980.pdf")
