@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""Tool for training SiSR PyTorch Network
+"""SiSR PyTorch Network training entry-point
 """
 
 import argparse
-import json
 import logging
 
-from torch.utils.data import DataLoader
-
 import sisr.bin
-import sisr.data
+from sisr.run import Tester
 
 
 logger = logging.getLogger(__name__)
 
 
 def build_parser():
-    """Build CLI Parser for with options for test.py
+    """Build CLI parser with options for train.py
     """
     # Inherit package arguments
     parents = sisr.bin.build_parser(),
@@ -28,39 +25,13 @@ def build_parser():
     return parser
 
 
-def test(options):
-    """Test network
-    """
-    transform = sisr.data.JointRandomTransform(
-        input_size=options.input_size)
-    dataset = sisr.data.Dataset(options.data_dir, transform=transform)
-    dataloader = DataLoader(dataset,
-        num_workers=options.num_workers)
-
-    for iteration, (inputs, targets) in enumerate(dataloader):
-
-        # Copy inputs and targets to the correct device
-        inputs = inputs.to(options.device)
-        targets = targets.to(options.device)
-
-        logger.info("Iteration: %d, inputs: %r, targets: %r",
-                    iteration, inputs.size(), targets.size())
-        # TODO<rsm>: run inference
-        # TODO<rsm>: compute metrics
-        # TODO<rsm>: log
-
-
 def main():
     """Entry point
     """
     # Command line interface
     parser = build_parser()
     options = parser.parse_args()
-
-    options_json = json.dumps(vars(options), sort_keys=True, indent=2)
-    logger.info("Options: %s", options_json)
-
-    test(options)
+    Tester(options).run()
 
 
 if __name__ == '__main__':
