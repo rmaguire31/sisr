@@ -124,9 +124,9 @@ def _contextual_similarity(
         X = output.view(num_features, -1).t()
         Y = target.view(num_features, -1).t()
 
-        # Normalise w.r.t mean
-        X = X - X.mean()
-        Y = Y - Y.mean()
+        # Normalise w.r.t mean point in feature space
+        X = X - X.mean(dim=0)
+        Y = Y - Y.mean(dim=0)
 
         # Pairwise matrix of cosine distances between vectors of X and Y
         dxy = torch.stack([
