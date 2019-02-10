@@ -103,12 +103,13 @@ class CombinedContentLoss(nn.Module):
 
 
 def _contextual_similarity(
-        outputs,
-        targets,
-        eps1=1e-8,
-        eps2=1e-5,
-        h=1,
-        reduction='mean'):
+    outputs,
+    targets,
+    eps1=1e-8,
+    eps2=1e-5,
+    h=1,
+    reduction='mean'
+):
     """Contextual similarity metric
 
     References:

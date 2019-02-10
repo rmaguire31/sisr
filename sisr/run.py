@@ -382,11 +382,12 @@ class Trainer(Tester):
         return checkpoint
 
     def criteria(
-            self,
-            outputs,
-            targets,
-            output_predictions=None,
-            target_predictions=None):
+        self,
+        outputs,
+        targets,
+        output_predictions=None,
+        target_predictions=None
+    ):
         """Compute all loss criteria
         """
         losses = {}

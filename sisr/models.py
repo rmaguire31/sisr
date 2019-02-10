@@ -19,14 +19,15 @@ class Sisr(nn.Module):
     """
 
     def __init__(
-            self,
-            kernel_size=3,
-            num_channels=1,
-            num_features=64,
-            num_resblocks=8,
-            scale_factor=4,
-            weight_norm=True,
-            upscaling='nearest'):
+        self,
+        kernel_size=3,
+        num_channels=1,
+        num_features=64,
+        num_resblocks=8,
+        scale_factor=4,
+        weight_norm=True,
+        upscaling='nearest'
+    ):
         super().__init__()
 
         # Colour space to feature space
@@ -192,10 +193,11 @@ class _ResidualBlock(nn.Module):
     """
 
     def __init__(
-            self,
-            kernel_size=3,
-            num_features=64,
-            weight_norm=True):
+        self,
+        kernel_size=3,
+        num_features=64,
+        weight_norm=True
+    ):
         super().__init__()
 
         conv1 = nn.Conv2d(num_features, num_features, kernel_size)
@@ -216,12 +218,13 @@ class _BasicBlock(nn.Sequential):
     """
 
     def __init__(
-            self,
-            in_channels=3,
-            out_channels=64,
-            kernel_size=3,
-            alpha=1e-2,
-            stride=2):
+        self,
+        in_channels=3,
+        out_channels=64,
+        kernel_size=3,
+        alpha=1e-2,
+        stride=2
+    ):
         layers = [
             nn.Conv2d(in_channels, out_channels, kernel_size)]
         if in_channels > 3:
