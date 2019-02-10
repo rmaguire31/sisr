@@ -22,7 +22,8 @@ setup(
     author='rmaguire31',
     author_email='rmaguire31@gmail.com',
     keywords='deep-learning PyTorch torch machine_learning deep-learning '
-        'super-resolution silicon semiconductor inspection SiSR EDSR WDSR',
+             'super-resolution silicon semiconductor inspection SiSR EDSR '
+             'WDSR',
     classifiers=[
         # How mature is this project? Common values are
         #   3 - Alpha
