@@ -1,10 +1,12 @@
 """Trainer and Tester classes for SiSR PyTorch super-resolution network
 """
 
+import json
 import os
 import glob
 import logging
-import time
+
+import torch
 
 from PIL import Image
 from pytorch_ssim import ssim
@@ -12,7 +14,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import StepLR
-from torch.utils.data import DataLoader, random_split
+from torch.utils import data
 from torchvision.utils import save_image
 from torchvision.transforms import functional as TF
 
@@ -28,7 +30,7 @@ __all__ = 'Tester', 'Trainer'
 logger = logging.getLogger(__name__)
 
 
-class Tester(nn.Module):
+class Tester:
     """PyTorch tester class
     """
 
@@ -39,13 +41,15 @@ class Tester(nn.Module):
         self.device = options.device
 
         # Save output dir before we update pre-existing options
+        self.log_dir = options.log_dir
         self.output_dir = options.output_dir
-        os.makedirs(options.output_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
 
         # Load any existing options
-        self.options_file = os.path.join(options.log_dir, 'options.json')
-        if os.path.isfile(self.options_file):
-            logger.info("Loading existing options from %s", self.options_file)
+        options_file = os.path.join(self.log_dir, 'options.json')
+        if os.path.isfile(options_file):
+            logger.info("Loading existing options from %s", options_file)
 
             with open(options_file) as f:
                 options.__dict__.update(json.load(f))
@@ -58,9 +62,8 @@ class Tester(nn.Module):
         options.output_dir = self.output_dir
 
         # Save options to file, along with package version number
-        logger.info("Saving options to %s", self.options_file)
+        logger.info("Saving options to %s", options_file)
         options.__version__ = __version__
-        os.makedirs(options.log_dir, exist_ok=True)
         with open(options_file, 'w') as f:
             json.dump(options.__dict__, f, indent=2, sort_keys=True)
 
@@ -70,10 +73,10 @@ class Tester(nn.Module):
         # Find checkpoint
         if 'checkpoint' in options:
             # Specified checkpoint
-            checkpoint_path = os.path.join(options.log_dir, options.checkpoint)
+            checkpoint_path = os.path.join(self.log_dir, options.checkpoint)
         else:
             # Latest checkpoint
-            checkpoint_glob = os.path.join(options.log_dir, '*.pth')
+            checkpoint_glob = os.path.join(self.log_dir, '*.pth')
             checkpoint_paths = sorted(glob.glob(checkpoint_glob))
             if checkpoint_paths:
                 checkpoint_path = checkpoint_paths[-1]
@@ -84,7 +87,6 @@ class Tester(nn.Module):
         if checkpoint_path is not None:
             self.load_checkpoint(checkpoint_path)
 
-
     def load_components(self, options):
         """Loads modules, models, losses, datasets etc.
 
@@ -92,7 +94,7 @@ class Tester(nn.Module):
         """
         if logger.isEnabledFor(logging.INFO):
             logger.info("Loading %s with options %r", type(self).__name__,
-                json.dumps(options.__dict__, indent=2, sort_keys=True))
+                        json.dumps(options.__dict__, indent=2, sort_keys=True))
 
         # Load dataset
         logger.info("Loading dataset from %s", options.data_dir)
@@ -108,27 +110,28 @@ class Tester(nn.Module):
             torch.cuda.manual_seed_all(options.seed)
 
         # Calculate lengths of training, validation and test sets
-        lengths = [int(p*len(dataset)) for p in 0.7, 0.2, 0.1]
-        lengths[0] = len(datset) - sum(lengths[0:])
+        lengths = [int(p * len(dataset)) for p in (0.7, 0.2, 0.1)]
+        lengths[0] = len(dataset) - sum(lengths[0:])
 
-        logger.info("Segmenting dataset of length %d into train, validation "
-                    "and test sets of lengths %d, %d and %d",
-                    len(dataset), *lengths)
-        train_set, validation_set, test_set = random_split(dataset, lengths)
+        logger.info(
+            "Segmenting dataset of length %d into train, validation and test "
+            "sets of lengths %d, %d and %d", len(dataset), *lengths)
+        training_set, validation_set, test_set = data.random_split(
+            dataset, lengths)
 
         # Dataloaders
-        self.train_loader = DataLoader(
+        self.training_loader = data.DataLoader(
             batch_size=options.batch_size,
             dataset=training_set,
             drop_last=True,
             num_workers=options.num_workers,
             shuffle=True)
-        self.validation_loader = DataLoader(
+        self.validation_loader = data.DataLoader(
             batch_size=options.batch_size,
             dataset=validation_set,
             drop_last=True,
             num_workers=options.num_workers)
-        self.test_loader = DataLoader(
+        self.test_loader = data.DataLoader(
             dataset=test_set,
             num_workers=options.num_workers)
 
@@ -144,6 +147,7 @@ class Tester(nn.Module):
 
         # Metric file
         self.metric_file = os.path.join(self.output_dir, 'metrics.json')
+        self._metrics = set()
 
     @property
     def checkpoint(self):
@@ -158,7 +162,7 @@ class Tester(nn.Module):
         """
         if checkpoint_path is None:
             checkpoint_path = os.path.join(
-                log_dir, 'checkpoint-%010d.pth' % iter)
+                self.log_dir, 'checkpoint-%010d.pth' % iter)
         checkpoint = torch.load(checkpoint_path)
         if 'model_state_dict' in checkpoint:
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -169,25 +173,35 @@ class Tester(nn.Module):
         """
         if checkpoint_path is None:
             checkpoint_path = os.path.join(
-                log_dir, 'checkpoint-%010d.pth' % iteration)
+                self.log_dir, 'checkpoint-%010d.pth' % iteration)
         torch.save(self.checkpoint, checkpoint_path)
         return checkpoint_path
 
-    def save_metric(self, metric):
+    def _save_metric(self, metric):
         """Logs metric line to metric file and stdout
         """
-        json = json.dumps(metric)
+        metric = json.dumps(metric)
         with open(self.metric_file, 'w') as f:
-            print(json)
-            print(json, file=f)
+            print(metric)
+            print(metric, file=f)
 
-    init_metric = save_metric
+    def save_metric(self, metric):
+        """Logs metric line, ensuring chart is initialised
+        """
+        if metric['chart'] not in self._metrics:
+            self._metrics.add(metric['chart'])
+
+            # Initialise chart
+            self._save_metric({k: metric[k] for k in ('chart', 'axis')})
+
+        # Save metric
+        self._save_metric({k: metric[k] for k in ('chart', 'x', 'y')})
 
     def save_image(self, input, output, target, filename=None, iteration=None):
         """
         """
         if filename is None:
-            filename = os.path.join(output_dir, '%05d.png' % iteration)
+            filename = os.path.join(self.output_dir, '%05d.png' % iteration)
 
         # Copy tensors to CPU
         input = input.cpu()
@@ -195,10 +209,12 @@ class Tester(nn.Module):
         target = target.cpu()
 
         # Bicubic baseline
-        bicubic = TF.to_tensor(
-            TF.resize(
-                TF.to_pil_image(input), target.size(),
-                interpolation=Image.BICUBIC))
+        bicubic = TF.to_pil_image(input)
+        bicubic = TF.resize(
+            img=bicubic,
+            size=target.size(),
+            interpolation=Image.BICUBIC)
+        bicubic = TF.to_tensor(bicubic)
 
         # Save to disk
         save_image((bicubic, output, target), filename)
@@ -209,10 +225,6 @@ class Tester(nn.Module):
         """
         # Disable training layers
         self.model.train(False)
-
-        # Initialise charts
-        self.init_metric({'chart': 'Test SSIM', 'axis': 'example'})
-        self.init_metric({'chart': 'Test PSNR', 'axis': 'example'})
 
         for iteration, (input, target) in self.test_loader:
 
@@ -228,9 +240,20 @@ class Tester(nn.Module):
             ssim_metric = ssim(output, target)
 
             # Save out
-            self.save_image(input, output, target)
-            self.save_metric({'chart': 'Test PSNR', 'x': iteration, 'y': psnr_metric})
-            self.save_metric({'chart': 'Test SSIM', 'x': iteration, 'y': ssim_metric})
+            self.save_image(input, output, target, iteration=iteration)
+            self.save_metric({
+                'chart': "Test PSNR",
+                'axis': "Example",
+                'x': iteration,
+                'y': psnr_metric.item()})
+            self.save_metric({
+                'chart': "Test SSIM",
+                'axis': "Example",
+                'x': iteration,
+                'y': ssim_metric.item()})
+
+    # Run is just an alias for test
+    run = test
 
 
 class Trainer(Tester):
@@ -267,11 +290,15 @@ class Trainer(Tester):
         self.content_loss.to(self.device)
 
         # Additional loading requirements if adversarial loss is specified
-        if 'A' in options.loss_configuration:
+        self.adversary_weight = options.loss_configuration.get('A', 0)
+        self.discriminator = self.adversary_weight != 0
 
-            # Load adversarial loss
-            self.adversarial_loss = nn.BCELoss()
-            self.adversarial_loss.to(self.device)
+        if self.discriminator:
+
+            # Load discriminator/adversary loss
+            self.discriminator_loss = nn.BCELoss()
+            self.discriminator_loss.to(self.device)
+            self.adversary_loss = self.discriminator_loss
 
             # Load discriminator
             self.discriminator_model = sisr.models.Discriminator()
@@ -315,7 +342,7 @@ class Trainer(Tester):
         checkpoint['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
 
         # Additional GAN components
-        if adversarial_weight != 0:
+        if self.adversary_weight != 0:
             checkpoint['discriminator'] = {}
             checkpoint['discriminator']['model_state_dict'] = \
                 self.discriminator_model.state_dict()
@@ -334,8 +361,6 @@ class Trainer(Tester):
         # Basic training components
         if 'epoch' in checkpoint:
             self.epoch = checkpoint['epoch']
-        if 'iteration' in checkpoint:
-            self.iteration = checkpoint['iteration']
         if 'optimiser_state_dict' in checkpoint:
             self.optimiser.load_state_dict(checkpoint['optimiser_state_dict'])
         if 'lr_scheduler_state_dict' in checkpoint:
@@ -343,7 +368,7 @@ class Trainer(Tester):
                 checkpoint['lr_scheduler_state_dict'])
 
         # Additional GAN components
-        if 'discriminator' in checkpoint and adversarial_weight != 0
+        if 'discriminator' in checkpoint and self.adversary_weight != 0:
             if 'model_state_dict' in checkpoint['discriminator']:
                 self.discriminator_model.load_state_dict(
                     checkpoint['discriminator']['model_state_dict'])
@@ -356,38 +381,175 @@ class Trainer(Tester):
 
         return checkpoint
 
-        def train(self):
-            """
-            """
-            # Set models to training mode
-            self.model.train(True)
-            if self.adversarial_weight != 0:
-                self.discriminator_model.train(True)
+    def criteria(
+            self,
+            outputs,
+            targets,
+            output_predictions=None,
+            target_predictions=None):
+        """Compute all loss criteria
+        """
+        losses = {}
 
-            for iteration, (inputs, targets) in enumerate(self.train_loader):
+        # Compute content loss
+        losses['content'] = self.content_loss(outputs, targets)
 
-                # Copy tensors to target device
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
+        # Total generator loss
+        losses['generator'] = losses['content']
 
-                # Inference
-                outputs = self.model(inputs)
+        if output_predictions is not None and target_predictions is not None:
 
-                # Compute loss
-                loss = self.content_loss(outputs, targets)
-                if self.adversarial_weight != 0:
+            # Compute adversary loss
+            adversary_targets = torch.ones(output_predictions.size())
+            adversary_targets = adversary_targets.to(self.device)
+            losses['adversary'] = self.adversary_loss(
+                output_predictions,
+                self.adversary_targets)
 
-                    discriminator_outputs = self.discriminator_model(outputs)
-                    discriminator_targets = torch.ones(
-                        discriminator_outputs.size()).to(self.device)
-                    loss += self.adversarial_weight * self.adversarial_loss(
-                        discriminator_outputs,
-                        discriminator_targets)
+            # Compute discriminator loss
+            discriminator_targets = torch.cat((
+                torch.zeros(output_predictions.size()),
+                torch.ones(target_predictions.size())))
+            discriminator_targets = discriminator_targets.to(self.device)
+            losses['discriminator'] = self.discriminator_loss(
+                torch.cat((output_predictions, target_predictions)),
+                self.discrimintor_targets)
 
-                # Backpropagate gradients
-                loss.backward()
+            # Update generator loss
+            losses['generator'] += self.adversary_weight * losses['adversary']
 
-                # Update parameters
-                self.lr_scheduler.step()
-                self.optimiser.step()
+        return losses
 
+    def train(self):
+        """Train models for one epoch of the training set
+        """
+        # Set models to training mode
+        self.model.train(True)
+        if self.discriminator:
+            self.discriminator_model.train(True)
+
+        # Calculate mean losses across training set
+        mean_losses = {}
+
+        # Train for one epoch of training set
+        for iteration, (inputs, targets) in enumerate(self.training_loader):
+
+            # Copy tensors to target device
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+
+            # Zero parameter gradients
+            self.optimiser.zero_grad()
+            if self.discriminator:
+                self.discriminator_optimiser.zero_grad()
+
+            # Forward pass
+            outputs = self.model(inputs)
+            if self.discriminator:
+                output_predictions = self.discriminator_model(outputs)
+                target_predictions = self.discriminator_model(targets)
+            else:
+                output_predictions = None
+                target_predictions = None
+
+            # Compute losses
+            losses = self.criteria(
+                outputs,
+                targets,
+                output_predictions,
+                target_predictions)
+
+            # Backward pass
+            losses['generator'].backward()
+            if self.discriminator:
+                losses['discriminator'].backward()
+
+            # Update parameters
+            self.optimiser.step()
+            if self.discriminator:
+                self.discriminator_optimiser.step()
+
+            # Compute running means
+            for k in losses:
+                mean_losses[k] = mean_losses.get(k, 0)
+                mean_losses[k] *= iteration / (iteration + 1)
+                mean_losses[k] += losses[k] / (iteration + 1)
+
+        for k in mean_losses:
+            self.save_metric({
+                'chart': "Training %s loss" % k,
+                'axis': "Epoch",
+                'x': self.epoch,
+                'y': mean_losses[k].item()})
+
+    def validate(self):
+        """Evaluate average loss across validation set
+        """
+        # Set models to testing mode
+        self.model.train(False)
+        if self.discriminator:
+            self.discriminator_model.train(False)
+
+        # Calculate mean losses across validation set
+        mean_losses = {}
+        for iteration, (inputs, targets) in enumerate(self.validation_loader):
+
+            # Copy tensors to target device
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+
+            # Forward pass
+            outputs = self.model(inputs)
+            if self.discriminator:
+                output_predictions = self.discriminator_model(outputs)
+                target_predictions = self.discriminator_model(targets)
+            else:
+                output_predictions = None
+                target_predictions = None
+
+            # Compute losses
+            losses = self.criteria(
+                outputs,
+                targets,
+                output_predictions,
+                target_predictions)
+
+            # Compute running means
+            for k in losses:
+                mean_losses[k] = mean_losses.get(k, 0)
+                mean_losses[k] *= iteration / (iteration + 1)
+                mean_losses[k] += losses[k] / (iteration + 1)
+
+        for k in mean_losses:
+            self.save_metric({
+                'chart': "Validation %s loss" % k,
+                'axis': "Epoch",
+                'x': self.epoch,
+                'y': mean_losses[k].item()})
+
+    def run(self):
+        """Continue training from loaded epoch
+        """
+        discriminator = self.discriminator
+        for self.epoch in range(self.epoch, self.max_epochs):
+
+            # Pretrain without discriminator
+            if self.epoch < self.pretrain_epochs:
+                self.discriminator = False
+            elif self.epoch == self.pretrain_epochs:
+                self.discriminator = discriminator
+
+            # Train and validate each epoch
+            self.train()
+            self.validate()
+
+            # Save our progress
+            self.save_checkpoint(iteration=self.epoch)
+
+            # Advance learning rate schedule
+            self.lr_scheduler.step()
+            if discriminator:
+                self.discriminator_lr_scheduler.step()
+
+        # Test final model
+        self.test()

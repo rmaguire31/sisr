@@ -60,7 +60,8 @@ def build_parser():
     parser.add_argument('--data_dir', type=str, required='/storage/dataset',
         help="Path to directory containing dataset.")
 
-    parser.add_argument('--device', type=str, default='cuda:0', choices=devices,
+    parser.add_argument('--device', type=str, default='cuda:0',
+        choices=devices,
         help="Device to use for tensor computation.")
 
     parser.add_argument('--input_size', type=int, nargs=2, default=None,

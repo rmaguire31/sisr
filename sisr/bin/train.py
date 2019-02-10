@@ -26,7 +26,8 @@ def build_parser():
     parser.add_argument('--adam_betas', type=float, nargs=2,
         default=(0.9, 0.999),
         help="Adam coefficients used for computing running averages of "
-             "gradient and its square. See https://arxiv.org/pdf/1412.6980.pdf")
+             "gradient and its square. See "
+             "https://arxiv.org/pdf/1412.6980.pdf")
 
     parser.add_argument('--adam_epsilon', type=float, default=1e-8,
         help="Adam term added to the denominator to improve numerical "
@@ -35,9 +36,11 @@ def build_parser():
     parser.add_argument('--discriminator_adam_betas', type=float, nargs=2,
         default=(0.9, 0.999),
         help="Adam coefficients used for computing running averages of "
-             "gradient and its square. See https://arxiv.org/pdf/1412.6980.pdf")
+             "gradient and its square. "
+             "See https://arxiv.org/pdf/1412.6980.pdf")
 
-    parser.add_argument('--discriminator_adam_epsilon', type=float, default=1e-8,
+    parser.add_argument('--discriminator_adam_epsilon', type=float,
+        default=1e-8,
         help="Adam term added to the denominator to improve numerical "
              "stability. See https://arxiv.org/pdf/1412.6980.pdf")
 
@@ -45,8 +48,9 @@ def build_parser():
         type=float, default=1e-4,
         help="Initial learning rate for discriminator.")
 
-    parser.add_argument('--discriminator_optimiser', '--discriminator_optimizer',
-        type=str.lower, default='adam', choices={'adam', 'sgd'},
+    parser.add_argument('--discriminator_optimiser',
+        '--discriminator_optimizer', type=str.lower, default='adam',
+        choices={'adam', 'sgd'},
         help="Method for stochastic optimisation. For details on Adam, see "
              "https://arxiv.org/pdf/1412.6980.pdf")
 
@@ -72,6 +76,9 @@ def build_parser():
         help="Method for stochastic optimisation. For details on Adam, see "
              "https://arxiv.org/pdf/1412.6980.pdf")
 
+    parser.add_argument('--pretrain_epochs', type=int, default=5,
+        help="Discriminator is disabled for this many epochs.")
+
     parser.add_argument('--scale_factor', type=float, default=4,
         help="Linear upscaling factor of super-resolution network.")
 
@@ -81,7 +88,7 @@ def build_parser():
     parser.add_argument('--step_size', type=int, default=int(2e5),
         help="Number of epochs between scheduled learning rate updates.")
 
-    parser.add_argument('--upsample', type=str.lower, default='nearest', 
+    parser.add_argument('--upsample', type=str.lower, default='nearest',
         choices={'nearest', 'shuffle'},
         help="Upsampling method to use in feed forward network.")
 
