@@ -32,8 +32,8 @@ class CombinedContentLoss(nn.Module):
         for component, weights in config.items():
 
             # Sanity check weights
-            value_error = ValueError("Argument config should be a dict of dicts "
-                                     "or floats, not %r", weights)
+            value_error = ValueError("Argument config should be a dict of "
+                                     "dicts or floats, not %r", weights)
             if isinstance(weights, dict):
                 if not all([
                     isinstance(k, str) and isinstance(v, float)
@@ -65,7 +65,7 @@ class CombinedContentLoss(nn.Module):
                 self.perceptual_weights = weights
 
             else:
-                raise NotImplementedError("Unknown content loss component %r" % 
+                raise NotImplementedError("Unknown content loss component %r" %
                                           component)
 
         if self.feature_names:
@@ -73,10 +73,9 @@ class CombinedContentLoss(nn.Module):
             self.feature_extractor.train(False)
 
             if not self.feature_names.issubset(self.feature_extractor.names):
-
-                unknown = self.feature_names - set(self.feature_extractor.names)
+                unknown = \
+                    self.feature_names - set(self.feature_extractor.names)
                 raise ValueError("Unknown feature names %r" % unknown)
-
 
     def forward(self, outputs, targets):
         loss = 0
@@ -85,8 +84,10 @@ class CombinedContentLoss(nn.Module):
 
         # Extract
         if self.feature_names:
-            output_features = self.feature_extractor(outputs, self.feature_names)
-            target_features = self.feature_extractor(targets, self.feature_names)
+            output_features = self.feature_extractor(outputs,
+                                                     self.feature_names)
+            target_features = self.feature_extractor(targets,
+                                                     self.feature_names)
 
         for feature_name, weight in self.contextual_weights.items():
             loss -= weight * torch.log(_contextual_similarity(
@@ -107,8 +108,7 @@ def _contextual_similarity(
         eps1=1e-8,
         eps2=1e-5,
         h=1,
-        reduction='mean'
-    ):
+        reduction='mean'):
     """Contextual similarity metric
 
     References:
@@ -129,8 +129,8 @@ def _contextual_similarity(
 
         # Pairwise matrix of cosine distances between vectors of X and Y
         dxy = torch.stack([
-            1 - torch.mm(X, y.view(-1,1)).view(-1) /
-                (X.norm(p=2,dim=1) * y.norm(p=2) + eps1)
+            1 - torch.mm(X, y.view(-1, 1)).view(-1) / (
+                X.norm(p=2, dim=1) * y.norm(p=2) + eps1)
             for y in Y])
 
         # Normalise w.r.t row minimum
@@ -166,7 +166,7 @@ def _gram_matrix(outputs):
 
         # Compute inner product and normalise by size of output
         G_ = torch.mm(X, X.t())
-      
+
         # Normalise w.r.t number of elements
         G_ /= X.numel()
         G.append(G_)

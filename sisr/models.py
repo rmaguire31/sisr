@@ -2,7 +2,6 @@
 """
 
 import logging
-import torch
 
 from torch import nn
 from torch.nn import functional as F
@@ -19,15 +18,15 @@ class Sisr(nn.Module):
     """SiSR generator network
     """
 
-    def __init__(self,
+    def __init__(
+            self,
             kernel_size=3,
             num_channels=1,
             num_features=64,
             num_resblocks=8,
             scale_factor=4,
             weight_norm=True,
-            upscaling='nearest'
-        ):
+            upscaling='nearest'):
         super().__init__()
 
         # Colour space to feature space
@@ -50,7 +49,10 @@ class Sisr(nn.Module):
 
                     if upscaling == 'nearest':
                         nearest = nn.Upsample(scale_factor=sf, mode='nearest')
-                        conv = nn.Conv2d(num_features, num_features, kernel_size)
+                        conv = nn.Conv2d(
+                            num_features,
+                            num_features,
+                            kernel_size)
                         # Is this ReLU really needed
                         relu = nn.ReLU(inplace=True)
                         if weight_norm:
@@ -62,7 +64,9 @@ class Sisr(nn.Module):
 
                     elif upscaling == 'shuffle':
                         conv = nn.Conv2d(
-                            num_features, num_features*sf**2, kernel_size)
+                            num_features,
+                            num_features * sf**2,
+                            kernel_size)
                         shuffle = nn.PixelShuffle(sf)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
@@ -133,10 +137,11 @@ class FeatureExtractor(nn.Module):
         # Make sure names are valid
         names = set(names)
         if not names.issubset(self.names):
-            logger.warning("Unknown feature names: %r", names - set(self.names))
+            logger.warning("Unknown feature names: %r",
+                           names - set(self.names))
 
         # Make sure greyscale images have three channels
-        x = x.expand(-1,3,-1,-1)
+        x = x.expand(-1, 3, -1, -1)
 
         # Extract named feature maps into a dictionary
         f = {}
@@ -157,7 +162,7 @@ class FeatureExtractor(nn.Module):
 
 
 class Discriminator(nn.Module):
-    """Discriminator for SiSR, borrowed from 
+    """Discriminator for SiSR, borrowed from
     """
 
     def __init__(self, num_channels=1, kernel_size=3):
@@ -186,11 +191,11 @@ class _ResidualBlock(nn.Module):
     """Residual learning block
     """
 
-    def __init__(self,
+    def __init__(
+            self,
             kernel_size=3,
             num_features=64,
-            weight_norm=True,
-        ):
+            weight_norm=True):
         super().__init__()
 
         conv1 = nn.Conv2d(num_features, num_features, kernel_size)
@@ -210,13 +215,13 @@ class _BasicBlock(nn.Sequential):
     """Downscaling block for discriminator
     """
 
-    def __init__(self,
+    def __init__(
+            self,
             in_channels=3,
             out_channels=64,
             kernel_size=3,
             alpha=1e-2,
-            stride=2,
-        ):
+            stride=2):
         layers = [
             nn.Conv2d(in_channels, out_channels, kernel_size)]
         if in_channels > 3:

@@ -72,13 +72,13 @@ class Dataset(BaseDataset):
         input_filename, target_filename = self.filenames[idx]
 
         # Open PIL Images
-        input_image = Image.open(input_filename)
-        target_image = Image.open(target_filename)
+        input_img = Image.open(input_filename)
+        target_img = Image.open(target_filename)
 
         if self.transform is not None:
-            input_image, target_image = self.transform(input_image, target_image)
+            input_img, target_img = self.transform(input_img, target_img)
 
-        return input_image, target_image
+        return input_img, target_img
 
 
 class JointRandomTransform:
@@ -96,7 +96,7 @@ class JointRandomTransform:
     def __call__(self, input, target):
         # Random patch extraction
         if self.crop_width is not None and self.crop_height is not None:
-            
+
             width, height = input.size
             scaled_width, scaled_height = target.size
 
@@ -117,9 +117,10 @@ class JointRandomTransform:
             top = random.randrange(0, height - self.crop_height)
 
             # Crop
-            input = TF.crop(input, top, left, self.crop_height, self.crop_width)
-            target = TF.crop(target, scale*top, scale*left,
-                             scale*self.crop_height, scale*self.crop_width)
+            input = TF.crop(input, top, left,
+                            self.crop_height, self.crop_width)
+            target = TF.crop(target, scale * top, scale * left,
+                             scale * self.crop_height, scale * self.crop_width)
 
         # Random horizontal flip and rotation
         width, height = input.size

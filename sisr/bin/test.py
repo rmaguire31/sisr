@@ -5,7 +5,6 @@
 import argparse
 import json
 import logging
-import sys
 
 from torch.utils.data import DataLoader
 
