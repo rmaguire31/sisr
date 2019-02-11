@@ -10,14 +10,17 @@ services:
     volumes:
       - ${DATA_DIR:-/media/rsm/Data/dataset}:/storage/data
       - ${LOG_DIR:-/home/rsm/Data/logs}:/storage/logs
-    command: >
-      "train.py \
-        --log_dir /storage/logs \
-        --data_dir /storage/data"
+    command: [
+      'train.py',
+      '--device', 'cpu',
+      '--data_dir', '/storage/data',
+      '--input_size', '48', '48',
+      '--log_dir', '/storage/logs',
+      '--loss_configuration', '{"E": 1.0}']
 
   test:
     extends: train
-    command: >
-      "test.py \
-        --log_dir /storage/logs \
-        --data_dir /storage/data"
+    command: [
+      'test.py',
+      '--data_dir', '/storage/data',
+      '--log_dir', '/storage/logs']
