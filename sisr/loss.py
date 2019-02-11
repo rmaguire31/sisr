@@ -30,21 +30,23 @@ class CombinedContentLoss(nn.Module):
         self.perceptual_weights = {}
 
         for component, weights in config.items():
+            logger.debug("Component: %r: %r", component, weights)
 
             # Sanity check weights
             value_error = ValueError("Argument config should be a dict of "
-                                     "dicts or floats, not %r", weights)
+                                     "dicts or floats, not %s" %
+                                     type(weights).__name__)
             if isinstance(weights, dict):
-                if not all([
-                    isinstance(k, str) and isinstance(v, float)
+                if not all(
+                    isinstance(k, str) and isinstance(v, (int, float))
                     for k, v in weights.items()
-                ]):
+                ):
                     raise value_error
 
                 # Keep master set of features
                 self.feature_names |= weights.keys()
 
-            elif not isinstance(weights, float):
+            elif not isinstance(weights, (int, float)):
                 raise value_error
 
             # Adversarial loss
@@ -54,15 +56,17 @@ class CombinedContentLoss(nn.Module):
 
             # MSE loss
             elif component == 'E':
-                self.mse_weight = weights
+                self.mse_weight = float(weights)
 
             # Contextual loss
             elif component == 'C':
-                self.contextual_weights = weights
+                self.contextual_weights = {k: float(v)
+                                           for k, v in weights.items()}
 
             # Perceptual loss
             elif component == 'P':
-                self.perceptual_weights = weights
+                self.perceptual_weights = {k: float(v)
+                                           for k, v in weights.items()}
 
             else:
                 raise NotImplementedError("Unknown content loss component %r" %
