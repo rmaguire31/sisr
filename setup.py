@@ -55,6 +55,7 @@ setup(
         'torch>=1.0.0',
         'torchvision>=0.2.1',
         'tensorboardx>=1.6',
+        'tqdm>=4.31.0',
         'pytorch_ssim',
     ],
     dependency_links=[

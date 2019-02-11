@@ -8,5 +8,6 @@ dependencies:
   - pytorch
   - torchvision
   - tensorboardx
+  - tqdm
   - pip:
     - git+git://github.com/Po-Hsun-Su/pytorch-ssim.git@master
