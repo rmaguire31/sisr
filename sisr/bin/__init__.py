@@ -6,11 +6,15 @@ import logging
 
 import torch
 
+from tqdm import tqdm
+
+import sisr
+
 
 logger = logging.getLogger(__name__)
 
 
-class ConfigureLogging(argparse.Action):
+class _ConfigureLogging(argparse.Action):
     """Argparse action to set logging level
     """
 
@@ -26,6 +30,11 @@ class ConfigureLogging(argparse.Action):
     ):
         """Initialise action, enforcing some arguments
         """
+        formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+        handler = _TqdmHandler()
+        handler.setFormatter(formatter)
+        sisr.logger.addHandler(handler)
+
         if const is not None:
             raise ValueError("const is not allowed")
         if nargs is not None:
@@ -33,13 +42,28 @@ class ConfigureLogging(argparse.Action):
         if type is not str.upper:
             raise ValueError("type must be str.upper")
         if default in choices:
-            logging.basicConfig(level=vars(logging)[default])
+            sisr.logger.setLevel(default)
         super().__init__(type=type, choices=choices, help=help, **kwargs)
 
     def __call__(self, parser, namespace, values, option_strings):
-        """Set logging level
+        """Set logging level and use handler which supports tqdm
         """
-        logging.basicConfig(level=vars(logging)[values])
+        sisr.logger.setLevel(vars(logging)[values])
+
+
+class _TqdmHandler(logging.StreamHandler):
+    """logging handler which does not iterfere with tqdm
+    """
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg, file=self.stream)
+            self.flush()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
 
 
 def build_parser():
@@ -82,7 +106,7 @@ def build_parser():
         type=str, required=True,
         help="Path to directory for tensorboard logs and checkpoints.")
 
-    parser.add_argument('--logging', action=ConfigureLogging, default='INFO')
+    parser.add_argument('--logging', action=_ConfigureLogging, default='INFO')
 
     parser.add_argument(
         '--num_workers',

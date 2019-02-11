@@ -5,6 +5,7 @@ import json
 import os
 import glob
 import logging
+import sys
 import warnings
 
 import torch
@@ -190,8 +191,8 @@ class Tester:
         """Logs metric line to metric file and stdout
         """
         metric = json.dumps(metric)
+        logger.info("JSON:\n%s", metric)
         with open(self.metric_file, 'w') as f:
-            print(metric)
             print(metric, file=f)
 
     def save_metric(self, metric):
@@ -232,6 +233,8 @@ class Tester:
     def test(self):
         """Evaluate model using PSNR and SSIM test metrics
         """
+        logger.info("Computing test metrics.")
+
         # Disable training layers
         self.model.train(False)
 
@@ -241,10 +244,8 @@ class Tester:
             unit='example',
             desc="Testing model",
             leave=True,
-            position=3,
             ncols=80,
         ):
-
             # Copy to target device
             input = input.to(self.device)
             target = target.to(self.device)
@@ -456,6 +457,8 @@ class Trainer(Tester):
     def train(self):
         """Train models for one epoch of the training set
         """
+        logger.info("Training model and computing mean training loss.")
+
         # Set models to training mode
         self.model.train(True)
         if self.discriminator:
@@ -471,7 +474,6 @@ class Trainer(Tester):
             unit='minibatch',
             desc="Training model",
             leave=True,
-            position=1,
             ncols=80,
         ):
             # Copy tensors to target device
@@ -526,6 +528,8 @@ class Trainer(Tester):
     def validate(self):
         """Evaluate average loss across validation set
         """
+        logger.info("Computing mean validation loss.")
+
         # Set models to testing mode
         self.model.train(False)
         if self.discriminator:
@@ -539,7 +543,6 @@ class Trainer(Tester):
             unit='minibatch',
             desc="Validating model",
             leave=True,
-            position=2,
             ncols=80,
         ):
             # Copy tensors to target device
@@ -592,6 +595,18 @@ class Trainer(Tester):
             desc='Running %s' % type(self).__name__,
             ncols=80,
         ):
+            self.save_metric({
+                'chart': "Learning rate",
+                'axis': "Epoch",
+                'x': self.epoch,
+                'y': self.lr_scheduler.get_lr()[0]})
+            if discriminator:
+                self.save_metric({
+                    'chart': "Discriminator learning rate",
+                    'axis': "Epoch",
+                    'x': self.epoch,
+                    'y': self.discriminator_lr_scheduler.get_lr()[0]})
+
             # Pretrain without discriminator
             if self.epoch < self.pretrain_epochs:
                 self.discriminator = False
