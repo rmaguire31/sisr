@@ -35,7 +35,7 @@ class Sisr(nn.Module):
             num_channels,
             num_features,
             kernel_size,
-            padding=kernel_size//2)
+            padding=kernel_size // 2)
         if weight_norm:
             conv = nn.utils.weight_norm(conv)
         self.head = nn.Sequential(conv)
@@ -58,8 +58,8 @@ class Sisr(nn.Module):
                             num_features,
                             num_features,
                             kernel_size,
-                            padding=kernel_size//2)
-	                # Is this ReLU really needed?
+                            padding=kernel_size // 2)
+                        # Is this ReLU really needed?
                         relu = nn.ReLU(inplace=True)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
@@ -73,7 +73,7 @@ class Sisr(nn.Module):
                             num_features,
                             num_features * sf**2,
                             kernel_size,
-                            padding=kernel_size//2)
+                            padding=kernel_size // 2)
                         shuffle = nn.PixelShuffle(sf)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
@@ -87,7 +87,7 @@ class Sisr(nn.Module):
             num_features,
             num_channels,
             kernel_size,
-            padding=kernel_size//2)
+            padding=kernel_size // 2)
         self.tail = nn.Sequential(*layers, conv)
 
     def forward(self, x):
@@ -214,13 +214,13 @@ class _ResidualBlock(nn.Module):
             num_features,
             num_features,
             kernel_size,
-            padding=kernel_size//2)
+            padding=kernel_size // 2)
         relu1 = nn.ReLU(inplace=True)
         conv2 = nn.Conv2d(
             num_features,
             num_features,
             kernel_size,
-            padding=kernel_size//2)
+            padding=kernel_size // 2)
         if weight_norm:
             conv1 = nn.utils.weight_norm(conv1)
             conv2 = nn.utils.weight_norm(conv2)
@@ -247,7 +247,7 @@ class _BasicBlock(nn.Sequential):
                 in_channels,
                 out_channels,
                 kernel_size,
-                padding=kernel_size//2)]
+                padding=kernel_size // 2)]
         if in_channels > 3:
             layers.append(nn.BatchNorm2d(out_channels))
         layers.extend((
@@ -257,7 +257,7 @@ class _BasicBlock(nn.Sequential):
                 out_channels,
                 kernel_size,
                 stride=stride,
-                padding=kernel_size//2),
+                padding=kernel_size // 2),
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(alpha, inplace=True)))
         return super().__init__(*layers)
