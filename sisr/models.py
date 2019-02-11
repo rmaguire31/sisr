@@ -26,12 +26,16 @@ class Sisr(nn.Module):
         num_resblocks=8,
         scale_factor=4,
         weight_norm=True,
-        upscaling='nearest'
+        upsample='nearest',
     ):
         super().__init__()
 
         # Colour space to feature space
-        conv = nn.Conv2d(num_channels, num_features, kernel_size)
+        conv = nn.Conv2d(
+            num_channels,
+            num_features,
+            kernel_size,
+            padding=kernel_size//2)
         if weight_norm:
             conv = nn.utils.weight_norm(conv)
         self.head = nn.Sequential(conv)
@@ -42,47 +46,53 @@ class Sisr(nn.Module):
             for _ in range(num_resblocks)])
 
         # Upsample features, then feature space to colour space
-        upsample = []
+        layers = []
         while scale_factor > 1:
 
             for sf in 3, 2:
                 if scale_factor % sf == 0:
 
-                    if upscaling == 'nearest':
+                    if upsample == 'nearest':
                         nearest = nn.Upsample(scale_factor=sf, mode='nearest')
                         conv = nn.Conv2d(
                             num_features,
                             num_features,
-                            kernel_size)
-                        # Is this ReLU really needed
-                        relu = nn.ReLU(inplace=True)
+                            kernel_size,
+                            padding=kernel_size//2)
+	                # Is this ReLU really needed?
+                        relu = nn.ReLU(inplace=False)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
 
-                        upsample.append(nearest)
-                        upsample.append(conv)
-                        upsample.append(relu)
+                        layers.append(nearest)
+                        layers.append(conv)
+                        layers.append(relu)
 
-                    elif upscaling == 'shuffle':
+                    elif upsample == 'shuffle':
                         conv = nn.Conv2d(
                             num_features,
                             num_features * sf**2,
-                            kernel_size)
+                            kernel_size,
+                            padding=kernel_size//2)
                         shuffle = nn.PixelShuffle(sf)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
 
-                        upsample.append(conv)
-                        upsample.append(shuffle)
+                        layers.append(conv)
+                        layers.append(shuffle)
 
                     scale_factor /= sf
 
-        conv = nn.Conv2d(num_features, num_channels, kernel_size)
-        self.tail = nn.Sequential(*upsample, conv)
+        conv = nn.Conv2d(
+            num_features,
+            num_channels,
+            kernel_size,
+            padding=kernel_size//2)
+        self.tail = nn.Sequential(*layers, conv)
 
     def forward(self, x):
         x = self.head(x)
-        x += self.body(x)
+        x = x + self.body(x)
         x = self.tail(x)
         return x
 
@@ -200,17 +210,24 @@ class _ResidualBlock(nn.Module):
     ):
         super().__init__()
 
-        conv1 = nn.Conv2d(num_features, num_features, kernel_size)
-        relu1 = nn.ReLU(inplace=True)
-        conv2 = nn.Conv2d(num_features, num_features, kernel_size)
+        conv1 = nn.Conv2d(
+            num_features,
+            num_features,
+            kernel_size,
+            padding=kernel_size//2)
+        relu1 = nn.ReLU(inplace=False)
+        conv2 = nn.Conv2d(
+            num_features,
+            num_features,
+            kernel_size,
+            padding=kernel_size//2)
         if weight_norm:
             conv1 = nn.utils.weight_norm(conv1)
             conv2 = nn.utils.weight_norm(conv2)
         self.body = nn.Sequential(conv1, relu1, conv2)
 
     def forward(self, x):
-        x += self.body(x)
-        return x
+        return x + self.body(x)
 
 
 class _BasicBlock(nn.Sequential):
@@ -226,12 +243,21 @@ class _BasicBlock(nn.Sequential):
         stride=2
     ):
         layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size)]
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size,
+                padding=kernel_size//2)]
         if in_channels > 3:
             layers.append(nn.BatchNorm2d(out_channels))
         layers.extend((
-            nn.LeakyReLU(alpha, inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size, stride=stride),
+            nn.LeakyReLU(alpha, inplace=False),
+            nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=kernel_size//2),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(alpha, inplace=True)))
+            nn.LeakyReLU(alpha, inplace=False)))
         return super().__init__(*layers)
