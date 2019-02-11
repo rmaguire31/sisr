@@ -5,6 +5,7 @@ import json
 import os
 import glob
 import logging
+import warnings
 
 import torch
 
@@ -17,6 +18,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 from torchvision.utils import save_image
 from torchvision.transforms import functional as TF
+from tqdm import trange, tqdm
 
 from sisr import __version__
 import sisr.data
@@ -37,8 +39,9 @@ class Tester:
     def __init__(self, options):
         super().__init__()
 
-        # Choose runtime device before we update pre-existing options
+        # Runtime options
         self.device = options.device
+        num_workers = options.num_workers
 
         # Save output dir before we update pre-existing options
         self.log_dir = options.log_dir
@@ -49,7 +52,7 @@ class Tester:
         # Load any existing options
         options_file = os.path.join(self.log_dir, 'options.json')
         if os.path.isfile(options_file):
-            logger.info("Loading existing options from %s", options_file)
+            logger.info("Loading existing options from '%s'", options_file)
 
             with open(options_file) as f:
                 options.__dict__.update(json.load(f))
@@ -60,21 +63,20 @@ class Tester:
         # Restore some options
         options.device = self.device
         options.output_dir = self.output_dir
+        options.log_dir = self.log_dir
+        options.num_workers = num_workers
 
         # Save options to file, along with package version number
-        logger.info("Saving options to %s", options_file)
+        logger.info("Saving options to '%s'", options_file)
         options.__version__ = __version__
         with open(options_file, 'w') as f:
             json.dump(options.__dict__, f, indent=2, sort_keys=True)
 
         # Load components
-        self.load_components()
+        self.load_components(options)
 
         # Find checkpoint
-        if 'checkpoint' in options:
-            # Specified checkpoint
-            checkpoint_path = os.path.join(self.log_dir, options.checkpoint)
-        else:
+        if options.checkpoint is None:
             # Latest checkpoint
             checkpoint_glob = os.path.join(self.log_dir, '*.pth')
             checkpoint_paths = sorted(glob.glob(checkpoint_glob))
@@ -82,6 +84,9 @@ class Tester:
                 checkpoint_path = checkpoint_paths[-1]
             else:
                 checkpoint_path = None
+        else:
+            # Specified checkpoint
+            checkpoint_path = os.path.join(self.log_dir, options.checkpoint)
 
         # Load checkpoint
         if checkpoint_path is not None:
@@ -93,11 +98,11 @@ class Tester:
         This should be called before load_checkpoint
         """
         if logger.isEnabledFor(logging.INFO):
-            logger.info("Loading %s with options %r", type(self).__name__,
+            logger.info("Loading %s with options %s", type(self).__name__,
                         json.dumps(options.__dict__, indent=2, sort_keys=True))
 
         # Load dataset
-        logger.info("Loading dataset from %s", options.data_dir)
+        logger.info("Loading dataset from '%s'", options.data_dir)
         transform = sisr.data.JointRandomTransform(
             input_size=options.input_size)
         dataset = sisr.data.Dataset(
@@ -106,16 +111,17 @@ class Tester:
 
         # Set random seed so we get the same segmentation each time
         torch.manual_seed(options.seed)
-        if torch.cuda.isavailable():
+        if torch.cuda.is_available():
             torch.cuda.manual_seed_all(options.seed)
 
         # Calculate lengths of training, validation and test sets
         lengths = [int(p * len(dataset)) for p in (0.7, 0.2, 0.1)]
-        lengths[0] = len(dataset) - sum(lengths[0:])
+        lengths[0] = len(dataset) - sum(lengths[1:])
 
         logger.info(
             "Segmenting dataset of length %d into train, validation and test "
-            "sets of lengths %d, %d and %d", len(dataset), *lengths)
+            "sets of lengths %d, %d and %d respectively.",
+            len(dataset), *lengths)
         training_set, validation_set, test_set = data.random_split(
             dataset, lengths)
 
@@ -136,14 +142,15 @@ class Tester:
             num_workers=options.num_workers)
 
         # Load model
-        logger.info("Loading model")
+        logger.info("Loading model.")
         self.model = sisr.models.Sisr(
             num_features=options.num_features,
             num_resblocks=options.num_resblocks,
             scale_factor=options.scale_factor,
-            weight_norm=options.weight_norm,
-            upscaling=options.upscaling)
+            upsample=options.upsample,
+            weight_norm=options.weight_norm)
         self.model.to(self.device)
+        logger.info("Model layers: %r", self.model)
 
         # Metric file
         self.metric_file = os.path.join(self.output_dir, 'metrics.json')
@@ -163,6 +170,7 @@ class Tester:
         if checkpoint_path is None:
             checkpoint_path = os.path.join(
                 self.log_dir, 'checkpoint-%010d.pth' % iter)
+        logger.info("Loading checkpoint from '%s'", checkpoint_path)
         checkpoint = torch.load(checkpoint_path)
         if 'model_state_dict' in checkpoint:
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -175,6 +183,7 @@ class Tester:
             checkpoint_path = os.path.join(
                 self.log_dir, 'checkpoint-%010d.pth' % iteration)
         torch.save(self.checkpoint, checkpoint_path)
+        logger.debug("Saving new checkpoint to '%s'", checkpoint_path)
         return checkpoint_path
 
     def _save_metric(self, metric):
@@ -198,7 +207,7 @@ class Tester:
         self._save_metric({k: metric[k] for k in ('chart', 'x', 'y')})
 
     def save_image(self, input, output, target, filename=None, iteration=None):
-        """
+        """Save grid of bicubic scaled input, output and target
         """
         if filename is None:
             filename = os.path.join(self.output_dir, '%05d.png' % iteration)
@@ -226,7 +235,15 @@ class Tester:
         # Disable training layers
         self.model.train(False)
 
-        for iteration, (input, target) in self.test_loader:
+        for iteration, (input, target) in tqdm(
+            self.test_loader,
+            total=len(self.text_loader),
+            unit='example',
+            desc="Testing model",
+            leave=True,
+            position=3,
+            ncols=80,
+        ):
 
             # Copy to target device
             input = input.to(self.device)
@@ -264,6 +281,8 @@ class Trainer(Tester):
         super().load_components(options)
 
         # Load optimiser
+        logger.info("Loading %s optimiser with initial learning rate %g.",
+                    options.optimiser, options.lr)
         if options.optimiser == 'adam':
             self.optimiser = Adam(
                 params=self.model.parameters(),
@@ -279,9 +298,12 @@ class Trainer(Tester):
                              options.optimiser)
 
         # Load learning rate scheduler
+        logger.info("Loading learning rate scheduler, to reduce learning rate "
+                    "by a factor %g every %d epochs.",
+                    options.step_gamma, options.step_epochs)
         self.lr_scheduler = StepLR(
-            optimiser=self.optimiser,
-            step_size=options.step_size,
+            optimizer=self.optimiser,
+            step_size=options.step_epochs,
             gamma=options.step_gamma)
 
         # Load content loss
@@ -301,10 +323,15 @@ class Trainer(Tester):
             self.adversary_loss = self.discriminator_loss
 
             # Load discriminator
+            logger.info("Loading discriminator.")
             self.discriminator_model = sisr.models.Discriminator()
             self.discriminator_model.to(self.device)
+            logger.info("Discriminator layers: %r", self.discriminator_model)
 
             # Load discriminator optimiser
+            logger.info("Loading %s discriminator optimiser with initial "
+                        "learning rate %g.",
+                        options.optimiser, options.discriminator_lr)
             if options.discriminator_optimiser == 'adam':
                 self.discriminator_optimiser = Adam(
                     params=self.discriminator_model.parameters(),
@@ -321,14 +348,19 @@ class Trainer(Tester):
                                  options.discriminator_optimiser)
 
             # Load discriminator learning rate scheduler
+            logger.info("Loading learning rate scheduler, to reduce learning "
+                        "rate for discriminator by factor %g every %d "
+                        "epochs.",
+                        options.step_gamma, options.step_epochs)
             self.disciminator_lr_scheduler = StepLR(
-                optimiser=self.disciminator_optim,
-                step_size=options.step_size,
+                optimizer=self.disciminator_optimiser,
+                step_size=options.step_epochs,
                 gamma=options.step_gamma)
 
-        # Maximum number of epochs and iterations
+        # Epoch settings
+        self.epoch = 0
         self.max_epochs = options.max_epochs
-        self.max_iterations = options.max_iterations
+        self.pretrain_epochs = options.pretrain_epochs
 
     @property
     def checkpoint(self):
@@ -433,8 +465,15 @@ class Trainer(Tester):
         mean_losses = {}
 
         # Train for one epoch of training set
-        for iteration, (inputs, targets) in enumerate(self.training_loader):
-
+        for iteration, (inputs, targets) in tqdm(
+            enumerate(self.training_loader),
+            total=len(self.training_loader),
+            unit='minibatch',
+            desc="Training model",
+            leave=True,
+            position=1,
+            ncols=80,
+        ):
             # Copy tensors to target device
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -459,6 +498,7 @@ class Trainer(Tester):
                 targets,
                 output_predictions,
                 target_predictions)
+            logger.debug('Losses: %r', losses)
 
             # Backward pass
             losses['generator'].backward()
@@ -493,8 +533,15 @@ class Trainer(Tester):
 
         # Calculate mean losses across validation set
         mean_losses = {}
-        for iteration, (inputs, targets) in enumerate(self.validation_loader):
-
+        for iteration, (inputs, targets) in tqdm(
+            enumerate(self.validation_loader),
+            total=len(self.validation_loader),
+            unit='minibatch',
+            desc="Validating model",
+            leave=True,
+            position=2,
+            ncols=80,
+        ):
             # Copy tensors to target device
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -531,9 +578,20 @@ class Trainer(Tester):
     def run(self):
         """Continue training from loaded epoch
         """
-        discriminator = self.discriminator
-        for self.epoch in range(self.epoch, self.max_epochs):
+        # Avoid polluting log with deprectation warninings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=UserWarning)
 
+        discriminator = self.discriminator
+        for self.epoch in trange(
+            self.epoch,
+            self.max_epochs,
+            initial=self.epoch,
+            total=self.max_epochs,
+            unit='epoch',
+            desc='Running %s' % type(self).__name__,
+            ncols=80,
+        ):
             # Pretrain without discriminator
             if self.epoch < self.pretrain_epochs:
                 self.discriminator = False

@@ -58,12 +58,12 @@ def build_parser():
 
     parser.add_argument(
         '--checkpoint',
-        type=str,
+        type=str, required=False,
         help="Checkpoint file to load.")
 
     parser.add_argument(
         '--data_dir',
-        type=str, required='/storage/dataset',
+        type=str, required=True,
         help="Path to directory containing dataset.")
 
     parser.add_argument(
@@ -86,7 +86,7 @@ def build_parser():
 
     parser.add_argument(
         '--num_workers',
-        type=int, default=1,
+        type=int, default=0,
         help="How many subprocesses to use for data loading. 0 means that the "
              "data will be loaded in the main process.")
 

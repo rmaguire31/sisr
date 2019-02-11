@@ -104,18 +104,18 @@ def build_parser():
 
     parser.add_argument(
         '--step_gamma',
-        type=float, default=0,
+        type=float, default=1.0,
         help="Decay factor gamma at each scheduled learning rate update.")
 
     parser.add_argument(
-        '--step_size',
-        type=int, default=int(2e5),
+        '--step_epochs',
+        type=int, default=500,
         help="Number of epochs between scheduled learning rate updates.")
 
     parser.add_argument(
         '--upsample',
         type=str.lower, default='nearest', choices={'nearest', 'shuffle'},
-        help="Upsampling method to use in feed forward network.")
+        help="Upsample method to use in feed forward network.")
 
     parser.add_argument(
         '--weight_norm',
