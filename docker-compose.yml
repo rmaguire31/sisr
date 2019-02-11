@@ -12,7 +12,6 @@ services:
       - ${LOG_DIR:-/home/rsm/Data/logs}:/storage/logs
     command: [
       'train.py',
-      '--device', 'cpu',
       '--data_dir', '/storage/data',
       '--input_size', '48', '48',
       '--log_dir', '/storage/logs',

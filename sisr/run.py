@@ -5,7 +5,6 @@ import json
 import os
 import glob
 import logging
-import sys
 import warnings
 
 import torch
@@ -183,16 +182,16 @@ class Tester:
         if checkpoint_path is None:
             checkpoint_path = os.path.join(
                 self.log_dir, 'checkpoint-%010d.pth' % iteration)
+        logger.info("Saving new checkpoint to '%s'", checkpoint_path)
         torch.save(self.checkpoint, checkpoint_path)
-        logger.debug("Saving new checkpoint to '%s'", checkpoint_path)
         return checkpoint_path
 
     def _save_metric(self, metric):
         """Logs metric line to metric file and stdout
         """
         metric = json.dumps(metric)
-        logger.info("JSON:\n%s", metric)
-        with open(self.metric_file, 'w') as f:
+        logger.info("JSON data:\n%s\n", metric)
+        with open(self.metric_file, 'a') as f:
             print(metric, file=f)
 
     def save_metric(self, metric):
@@ -238,37 +237,38 @@ class Tester:
         # Disable training layers
         self.model.train(False)
 
-        for iteration, (input, target) in tqdm(
-            self.test_loader,
-            total=len(self.text_loader),
-            unit='example',
-            desc="Testing model",
-            leave=True,
-            ncols=80,
-        ):
-            # Copy to target device
-            input = input.to(self.device)
-            target = target.to(self.device)
+        with torch.no_grad():
+            for iteration, (input, target) in tqdm(
+                self.test_loader,
+                total=len(self.text_loader),
+                unit='example',
+                desc="Testing model",
+                leave=True,
+                ncols=80,
+            ):
+                # Copy to target device
+                input = input.to(self.device).requires_grad_(False)
+                target = target.to(self.device).requires_grad_(False)
 
-            # Inference
-            output = self.model(input)
+                # Inference
+                output = self.model(input)
 
-            # Compute test metrics
-            psnr_metric = -10 * torch.log10(F.mse_loss(output, target))
-            ssim_metric = ssim(output, target)
+                # Compute test metrics
+                psnr_metric = -10 * torch.log10(F.mse_loss(output, target))
+                ssim_metric = ssim(output, target)
 
-            # Save out
-            self.save_image(input, output, target, iteration=iteration)
-            self.save_metric({
-                'chart': "Test PSNR",
-                'axis': "Example",
-                'x': iteration,
-                'y': psnr_metric.item()})
-            self.save_metric({
-                'chart': "Test SSIM",
-                'axis': "Example",
-                'x': iteration,
-                'y': ssim_metric.item()})
+                # Save out
+                self.save_image(input, output, target, iteration=iteration)
+                self.save_metric({
+                    'chart': "Test PSNR",
+                    'axis': "Example",
+                    'x': iteration,
+                    'y': psnr_metric.item()})
+                self.save_metric({
+                    'chart': "Test SSIM",
+                    'axis': "Example",
+                    'x': iteration,
+                    'y': ssim_metric.item()})
 
     # Run is just an alias for test
     run = test
@@ -426,10 +426,7 @@ class Trainer(Tester):
         losses = {}
 
         # Compute content loss
-        losses['content'] = self.content_loss(outputs, targets)
-
-        # Total generator loss
-        losses['generator'] = losses['content']
+        losses['generator'] = self.content_loss(outputs, targets)
 
         if output_predictions is not None and target_predictions is not None:
 
@@ -450,7 +447,9 @@ class Trainer(Tester):
                 self.discrimintor_targets)
 
             # Update generator loss
-            losses['generator'] += self.adversary_weight * losses['adversary']
+            losses['content'] = losses['generator']
+            losses['generator'] = losses['content'] + \
+                self.adversary_weight * losses['adversary']
 
         return losses
 
@@ -468,14 +467,12 @@ class Trainer(Tester):
         mean_losses = {}
 
         # Train for one epoch of training set
-        for iteration, (inputs, targets) in tqdm(
-            enumerate(self.training_loader),
-            total=len(self.training_loader),
+        for iteration, (inputs, targets) in enumerate(tqdm(
+            self.training_loader,
             unit='minibatch',
             desc="Training model",
-            leave=True,
             ncols=80,
-        ):
+        )):
             # Copy tensors to target device
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -513,10 +510,11 @@ class Trainer(Tester):
                 self.discriminator_optimiser.step()
 
             # Compute running means
-            for k in losses:
-                mean_losses[k] = mean_losses.get(k, 0)
-                mean_losses[k] *= iteration / (iteration + 1)
-                mean_losses[k] += losses[k] / (iteration + 1)
+            with torch.no_grad():
+                for k in losses:
+                    mean_losses[k] = mean_losses.get(k, 0)
+                    mean_losses[k] *= iteration / (iteration + 1)
+                    mean_losses[k] += losses[k] / (iteration + 1)
 
         for k in mean_losses:
             self.save_metric({
@@ -536,40 +534,39 @@ class Trainer(Tester):
             self.discriminator_model.train(False)
 
         # Calculate mean losses across validation set
-        mean_losses = {}
-        for iteration, (inputs, targets) in tqdm(
-            enumerate(self.validation_loader),
-            total=len(self.validation_loader),
-            unit='minibatch',
-            desc="Validating model",
-            leave=True,
-            ncols=80,
-        ):
-            # Copy tensors to target device
-            inputs = inputs.to(self.device)
-            targets = targets.to(self.device)
+        with torch.no_grad():
+            mean_losses = {}
+            for iteration, (inputs, targets) in enumerate(tqdm(
+                self.validation_loader,
+                unit='minibatch',
+                desc="Validating model",
+                ncols=80,
+            )):
+                # Copy tensors to target device
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
 
-            # Forward pass
-            outputs = self.model(inputs)
-            if self.discriminator:
-                output_predictions = self.discriminator_model(outputs)
-                target_predictions = self.discriminator_model(targets)
-            else:
-                output_predictions = None
-                target_predictions = None
+                # Forward pass
+                outputs = self.model(inputs)
+                if self.discriminator:
+                    output_predictions = self.discriminator_model(outputs)
+                    target_predictions = self.discriminator_model(targets)
+                else:
+                    output_predictions = None
+                    target_predictions = None
 
-            # Compute losses
-            losses = self.criteria(
-                outputs,
-                targets,
-                output_predictions,
-                target_predictions)
+                # Compute losses
+                losses = self.criteria(
+                    outputs,
+                    targets,
+                    output_predictions,
+                    target_predictions)
 
-            # Compute running means
-            for k in losses:
-                mean_losses[k] = mean_losses.get(k, 0)
-                mean_losses[k] *= iteration / (iteration + 1)
-                mean_losses[k] += losses[k] / (iteration + 1)
+                # Compute running means
+                for k in losses:
+                    mean_losses[k] = mean_losses.get(k, 0)
+                    mean_losses[k] *= iteration / (iteration + 1)
+                    mean_losses[k] += losses[k] / (iteration + 1)
 
         for k in mean_losses:
             self.save_metric({
