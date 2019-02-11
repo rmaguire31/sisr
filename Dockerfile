@@ -8,4 +8,3 @@ RUN conda env update -n base -f environment.yml
 COPY . /sisr
 RUN pip install /sisr
 
-ENTRYPOINT ["/bin/bash", "-c"]
