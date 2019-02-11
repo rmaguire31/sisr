@@ -60,7 +60,7 @@ class Sisr(nn.Module):
                             kernel_size,
                             padding=kernel_size//2)
 	                # Is this ReLU really needed?
-                        relu = nn.ReLU(inplace=False)
+                        relu = nn.ReLU(inplace=True)
                         if weight_norm:
                             conv = nn.utils.weight_norm(conv)
 
@@ -215,7 +215,7 @@ class _ResidualBlock(nn.Module):
             num_features,
             kernel_size,
             padding=kernel_size//2)
-        relu1 = nn.ReLU(inplace=False)
+        relu1 = nn.ReLU(inplace=True)
         conv2 = nn.Conv2d(
             num_features,
             num_features,
@@ -251,7 +251,7 @@ class _BasicBlock(nn.Sequential):
         if in_channels > 3:
             layers.append(nn.BatchNorm2d(out_channels))
         layers.extend((
-            nn.LeakyReLU(alpha, inplace=False),
+            nn.LeakyReLU(alpha, inplace=True),
             nn.Conv2d(
                 out_channels,
                 out_channels,
@@ -259,5 +259,5 @@ class _BasicBlock(nn.Sequential):
                 stride=stride,
                 padding=kernel_size//2),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(alpha, inplace=False)))
+            nn.LeakyReLU(alpha, inplace=True)))
         return super().__init__(*layers)
