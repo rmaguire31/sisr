@@ -32,6 +32,9 @@ __all__ = 'Tester', 'Trainer'
 logger = logging.getLogger(__name__)
 
 
+TQDM_WIDTH = 80
+
+
 class Tester:
     """PyTorch tester class
     """
@@ -189,8 +192,8 @@ class Tester:
     def _save_metric(self, metric):
         """Logs metric line to metric file and stdout
         """
-        metric = json.dumps(metric)
-        logger.info("JSON data:\n%s\n", metric)
+        metric = '%-*s' % (TQDM_WIDTH, json.dumps(metric))
+        logger.info("JSON data:\n%s", metric)
         with open(self.metric_file, 'a') as f:
             print(metric, file=f)
 
@@ -244,7 +247,7 @@ class Tester:
                 unit='example',
                 desc="Testing model",
                 leave=True,
-                ncols=80,
+                ncols=TQDM_WIDTH,
             ):
                 # Copy to target device
                 input = input.to(self.device).requires_grad_(False)
@@ -471,7 +474,7 @@ class Trainer(Tester):
             self.training_loader,
             unit='minibatch',
             desc="Training model",
-            ncols=80,
+            ncols=TQDM_WIDTH,
         )):
             # Copy tensors to target device
             inputs = inputs.to(self.device)
@@ -540,7 +543,7 @@ class Trainer(Tester):
                 self.validation_loader,
                 unit='minibatch',
                 desc="Validating model",
-                ncols=80,
+                ncols=TQDM_WIDTH,
             )):
                 # Copy tensors to target device
                 inputs = inputs.to(self.device)
@@ -590,7 +593,7 @@ class Trainer(Tester):
             total=self.max_epochs,
             unit='epoch',
             desc='Running %s' % type(self).__name__,
-            ncols=80,
+            ncols=TQDM_WIDTH,
         ):
             self.save_metric({
                 'chart': "Learning rate",
