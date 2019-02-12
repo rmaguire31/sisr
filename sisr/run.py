@@ -49,6 +49,7 @@ class Tester:
         num_workers = options.num_workers
 
         # Save dirs before we update pre-existing options
+        data_dir = options.data_dir
         self.log_dir = options.log_dir
         self.output_dir = options.output_dir
         os.makedirs(self.log_dir, exist_ok=True)
@@ -69,6 +70,7 @@ class Tester:
         options.device = self.device
         options.output_dir = self.output_dir
         options.log_dir = self.log_dir
+        options.data_dir = data_dir
         options.batch_size = batch_size
         options.input_size = input_size
         options.num_workers = num_workers
