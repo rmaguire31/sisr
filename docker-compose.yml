@@ -25,7 +25,7 @@ services:
     extends: train
     command: [
       'test.py',
-      '--data_dir', '/storage/data/mse',
+      '--data_dir', '/storage/data/dataset',
       '--log_dir', '/storage/logs/mse',
       '--output_dir', '/artifacts/mse',
     ]
