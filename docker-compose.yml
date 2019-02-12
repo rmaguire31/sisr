@@ -7,19 +7,25 @@ services:
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=${NV_GPU}
+      - TORCH_HOME=/storage/data/.torch
     volumes:
-      - ${DATA_DIR:-/media/rsm/Data/dataset}:/storage/data
+      - ${DATA_DIR:-/media/rsm/Data}:/storage/data
       - ${LOG_DIR:-/home/rsm/Data/logs}:/storage/logs
+      - ${OUTPUT_DIR:-/home/rsm/Data/output}:/artifacts
     command: [
       'train.py',
-      '--data_dir', '/storage/data',
+      '--data_dir', '/storage/data/dataset',
       '--input_size', '48', '48',
-      '--log_dir', '/storage/logs',
-      '--loss_configuration', '{"E": 1.0}']
+      '--log_dir', '/storage/logs/mse',
+      '--loss_configuration', '{"E": 1}',
+      '--output_dir', '/artifacts/mse',
+    ]
 
   test:
     extends: train
     command: [
       'test.py',
-      '--data_dir', '/storage/data',
-      '--log_dir', '/storage/logs']
+      '--data_dir', '/storage/data/mse',
+      '--log_dir', '/storage/logs/mse',
+      '--output_dir', '/artifacts/mse',
+    ]
