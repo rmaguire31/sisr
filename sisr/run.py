@@ -99,6 +99,10 @@ class Tester:
         if checkpoint_path is not None:
             self.load_checkpoint(checkpoint_path)
 
+        # Avoid polluting log with deprecation warninings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=UserWarning)
+
     def load_components(self, options):
         """Loads modules, models, losses, datasets etc.
 
@@ -277,14 +281,7 @@ class Tester:
                         'x': iteration,
                         'y': ssim_metric.item()})
 
-    def run(self):
-        """Run test on loaded model
-        """
-        # Avoid polluting log with deprectation warninings
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        warnings.filterwarnings("ignore", category=UserWarning)
-
-        self.test()
+    run = test
 
 
 class Trainer(Tester):
