@@ -44,9 +44,11 @@ class Tester:
 
         # Runtime options
         self.device = options.device
+        batch_size = options.batch_size
+        input_size = options.input_size
         num_workers = options.num_workers
 
-        # Save output dir before we update pre-existing options
+        # Save dirs before we update pre-existing options
         self.log_dir = options.log_dir
         self.output_dir = options.output_dir
         os.makedirs(self.log_dir, exist_ok=True)
@@ -67,6 +69,8 @@ class Tester:
         options.device = self.device
         options.output_dir = self.output_dir
         options.log_dir = self.log_dir
+        options.batch_size = batch_size
+        options.input_size = input_size
         options.num_workers = num_workers
 
         # Save options to file, along with package version number
@@ -215,7 +219,7 @@ class Tester:
         if filename is None:
             filename = os.path.join(self.output_dir, '%05d.png' % iteration)
 
-        # Copy tensors to CPU
+        # Copy tensors to CPU, removing batch dimension
         input = input.cpu()
         output = output.cpu()
         target = target.cpu()
@@ -224,12 +228,12 @@ class Tester:
         bicubic = TF.to_pil_image(input)
         bicubic = TF.resize(
             img=bicubic,
-            size=target.size(),
+            size=target.size()[-2:],
             interpolation=Image.BICUBIC)
         bicubic = TF.to_tensor(bicubic)
 
         # Save to disk
-        save_image((bicubic, output, target), filename)
+        save_image([bicubic, output, target], filename)
         return filename
 
     def test(self):
@@ -241,40 +245,46 @@ class Tester:
         self.model.train(False)
 
         with torch.no_grad():
-            for iteration, (input, target) in tqdm(
+            for iteration, (inputs, targets) in enumerate(tqdm(
                 self.test_loader,
-                total=len(self.text_loader),
                 unit='example',
                 desc="Testing model",
                 leave=True,
                 ncols=TQDM_WIDTH,
-            ):
+            )):
                 # Copy to target device
-                input = input.to(self.device).requires_grad_(False)
-                target = target.to(self.device).requires_grad_(False)
+                inputs = inputs.to(self.device).requires_grad_(False)
+                targets = targets.to(self.device).requires_grad_(False)
 
                 # Inference
-                output = self.model(input)
+                outputs = self.model(inputs)
 
                 # Compute test metrics
-                psnr_metric = -10 * torch.log10(F.mse_loss(output, target))
-                ssim_metric = ssim(output, target)
+                psnr_metric = -10 * torch.log10(F.mse_loss(outputs, targets))
+                ssim_metric = ssim(outputs, targets)
 
                 # Save out
-                self.save_image(input, output, target, iteration=iteration)
-                self.save_metric({
-                    'chart': "Test PSNR",
-                    'axis': "Example",
-                    'x': iteration,
-                    'y': psnr_metric.item()})
-                self.save_metric({
-                    'chart': "Test SSIM",
-                    'axis': "Example",
-                    'x': iteration,
-                    'y': ssim_metric.item()})
+                for input, output, target in zip(inputs, outputs, targets):
+                    self.save_image(input, output, target, iteration=iteration)
+                    self.save_metric({
+                        'chart': "Test PSNR",
+                        'axis': "Example",
+                        'x': iteration,
+                        'y': psnr_metric.item()})
+                    self.save_metric({
+                        'chart': "Test SSIM",
+                        'axis': "Example",
+                        'x': iteration,
+                        'y': ssim_metric.item()})
 
-    # Run is just an alias for test
-    run = test
+    def run(self):
+        """Run test on loaded model
+        """
+        # Avoid polluting log with deprectation warninings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=UserWarning)
+
+        self.test()
 
 
 class Trainer(Tester):
@@ -581,10 +591,6 @@ class Trainer(Tester):
     def run(self):
         """Continue training from loaded epoch
         """
-        # Avoid polluting log with deprectation warninings
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        warnings.filterwarnings("ignore", category=UserWarning)
-
         discriminator = self.discriminator
         for self.epoch in trange(
             self.epoch,
