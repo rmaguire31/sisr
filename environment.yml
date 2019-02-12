@@ -1,11 +1,13 @@
-name: preproc
+name: sisr
 channels: 
   - conda-forge
   - pytorch
 dependencies:
   - numpy
-  - opencv
-  - torchvision
+  - pillow
   - pytorch
+  - torchvision
+  - tensorboardx
+  - tqdm
   - pip:
     - git+git://github.com/Po-Hsun-Su/pytorch-ssim.git@master
