@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.0-cuda10.0-cudnn7-devel
+FROM pytorch/pytorch:1.0.1-cuda10.0-cudnn7-devel
 
 # Dependencies are updated less often and are slow to build
 COPY environment.yml environment.yml
