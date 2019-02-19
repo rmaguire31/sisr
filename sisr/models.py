@@ -104,6 +104,9 @@ class FeatureExtractor(nn.Module):
     def __init__(self, variant='E', pretrained=True):
         super().__init__()
 
+        # Normalisation layer
+        self.norm = _ImagenetNorm()
+
         # Extract torchvision feature modules, and download pretrained ImageNet
         # weights
         if variant == 'A':
@@ -151,8 +154,10 @@ class FeatureExtractor(nn.Module):
             logger.warning("Unknown feature names: %r",
                            names - set(self.names))
 
-        # Make sure greyscale images have three channels
+        # Make sure greyscale images have three channels and have been
+        # normalised with imagenet weights
         x = x.expand(-1, 3, -1, -1)
+        x = x.norm(x)
 
         # Extract named feature maps into a dictionary
         f = {}
@@ -261,3 +266,23 @@ class _BasicBlock(nn.Sequential):
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(alpha, inplace=True)))
         return super().__init__(*layers)
+
+
+class _ImagenetNorm(nn.Module):
+    """Performs ImageNet mean and standard deviation normalisation
+    """
+
+    def __init__(
+        self,
+        mean=[0.485, 0.456, 0.406],
+        std=[0.485, 0.456, 0.406],
+    ):
+        self.mean = mean
+        self.std = std
+
+    def forward(self, x):
+        x = x.clone()
+        for idx, (mean, std) in enumerate(self.mean, self.std):
+            x[:, idx] -= mean
+            x[:, idx] /= std
+        return
