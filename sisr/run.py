@@ -20,7 +20,7 @@ from torchvision.utils import save_image
 from torchvision.transforms import functional as TF
 from tqdm import trange, tqdm
 
-from sisr import __version__
+from sisr import __version_info__, __version__
 import sisr.data
 import sisr.loss
 import sisr.models
@@ -63,8 +63,12 @@ class Tester:
             with open(options_file) as f:
                 options.__dict__.update(json.load(f))
 
-            if options.__version__ != __version__:
-                raise ValueError("Loaded options for different sisr version")
+            if '__version_info__' not in options:
+                options.__version_info__ = options.__version__.split('.')
+            if tuple(options.__version_info__[:2]) != __version_info__[:2]:
+                raise ValueError(
+                    "Package version %r is incompatible with loaded options "
+                    "version %r" % (__version__, options.__version__))
 
         # Restore some options
         options.device = self.device
@@ -78,6 +82,7 @@ class Tester:
         # Save options to file, along with package version number
         logger.info("Saving options to '%s'", options_file)
         options.__version__ = __version__
+        options.__version_info__ = __version_info__
         with open(options_file, 'w') as f:
             json.dump(options.__dict__, f, indent=2, sort_keys=True)
 
@@ -447,7 +452,7 @@ class Trainer(Tester):
             adversary_targets = adversary_targets.to(self.device)
             losses['adversary'] = self.adversary_loss(
                 output_predictions,
-                self.adversary_targets)
+                adversary_targets)
 
             # Compute discriminator loss
             discriminator_targets = torch.cat((
@@ -456,7 +461,7 @@ class Trainer(Tester):
             discriminator_targets = discriminator_targets.to(self.device)
             losses['discriminator'] = self.discriminator_loss(
                 torch.cat((output_predictions, target_predictions)),
-                self.discrimintor_targets)
+                discriminator_targets)
 
             # Update generator loss
             losses['content'] = losses['generator']
@@ -512,9 +517,11 @@ class Trainer(Tester):
             logger.debug('Losses: %r', losses)
 
             # Backward pass
-            losses['generator'].backward()
             if self.discriminator:
+                losses['generator'].backward(retain_graph=True)
                 losses['discriminator'].backward()
+            else:
+                losses['generator'].backward()
 
             # Update parameters
             self.optimiser.step()
