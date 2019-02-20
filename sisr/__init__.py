@@ -1,6 +1,7 @@
 """SiSR PyTorch Network for super-resolution in semiconductor device inspection
 """
-__version__ = '0.1.1.dev0'
+__version_info__ = '0', '1', '1', 'dev0',
+__version__ = '.'.join(__version_info__)
 
 
 import logging
