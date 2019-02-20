@@ -2,7 +2,7 @@ version: '2.3'
 
 services:
 
-  test:
+  test_2:
     build: .
     runtime: nvidia
     environment:
@@ -15,48 +15,70 @@ services:
     command: [
       'test.py',
       '--data_dir', '/storage/data/dataset',
-      '--log_dir', '/storage/logs/mse',
-      '--output_dir', '/artifacts/mse',
+      '--log_dir', '/storage/logs/2',
+      '--output_dir', '/artifacts/2',
     ]
 
-  train_mse:
-    extends: test
+  test_p:
+    extends: test_2
+    command: [
+      'test.py',
+      '--data_dir', '/storage/data/dataset',
+      '--log_dir', '/storage/logs/p',
+      '--output_dir', '/artifacts/p',
+    ]
+
+  test_pa:
+    extends: test_2
+    command: [
+      'test.py',
+      '--data_dir', '/storage/data/dataset',
+      '--log_dir', '/storage/logs/pa',
+      '--output_dir', '/artifacts/pa',
+    ]
+
+  train_2:
+    extends: test_2
     command: [
       'train.py',
       '--data_dir', '/storage/data/dataset',
       '--input_size', '48', '48',
       '--learning_rate', '1e-3',
-      '--log_dir', '/storage/logs/mse',
+      '--log_dir', '/storage/logs/2',
       '--loss_configuration', '{"E": 1}',
-      '--output_dir', '/artifacts/mse',
+      '--output_dir', '/artifacts/2',
       '--weight_norm',
     ]
 
-  train_perceptual:
-    extends: test
+  train_p:
+    extends: test_p
     command: [
       'train.py',
       '--data_dir', '/storage/data/dataset',
       '--input_size', '48', '48',
       '--learning_rate', '1e-3',
-      '--log_dir', '/storage/logs/perceptual',
+      '--log_dir', '/storage/logs/p',
       '--loss_configuration', '{"P": {"conv2_2": 2e-1, "conv5_4": 2e-2}}',
-      '--output_dir', '/artifacts/perceptual',
+      '--output_dir', '/artifacts/p',
       '--weight_norm',
     ]
 
-  train_adversarial:
-    extends: test
+  train_pa:
+    extends: test_pa
     command: [
       'train.py',
       '--data_dir', '/storage/data/dataset',
+      '--discriminator_lr', '1e-3',
       '--input_size', '48', '48',
       '--learning_rate', '1e-3',
-      '--log_dir', '/storage/logs/adversarial',
-      '--loss_configuration', '{"E": 1, "A": 1e-3}',
-      '--output_dir', '/artifacts/adversarial',
+      '--log_dir', '/storage/logs/pa',
+      '--loss_configuration', '{"P": {"conv2_2": 2e-1, "conv5_4": 2e-2}, "A": 1}',
+      '--output_dir', '/artifacts/pa',
       '--weight_norm',
     ]
+
+  test:
+    extends: test_2
 
   train:
-    extends: train_mse
+    extends: train_2
