@@ -365,8 +365,8 @@ class Trainer(Tester):
                         "rate for discriminator by factor %g every %d "
                         "epochs.",
                         options.step_gamma, options.step_epochs)
-            self.disciminator_lr_scheduler = StepLR(
-                optimizer=self.disciminator_optimiser,
+            self.discriminator_lr_scheduler = StepLR(
+                optimizer=self.discriminator_optimiser,
                 step_size=options.step_epochs,
                 gamma=options.step_gamma)
 
@@ -600,6 +600,9 @@ class Trainer(Tester):
             desc='Running %s' % type(self).__name__,
             ncols=TQDM_WIDTH,
         ):
+            # Save our progress
+            self.save_checkpoint(iteration=self.epoch)
+
             self.save_metric({
                 'chart': "Learning rate",
                 'axis': "Epoch",
@@ -621,9 +624,6 @@ class Trainer(Tester):
             # Train and validate each epoch
             self.train()
             self.validate()
-
-            # Save our progress
-            self.save_checkpoint(iteration=self.epoch)
 
             # Advance learning rate schedule
             self.lr_scheduler.step()
