@@ -3,6 +3,8 @@
 
 import logging
 
+import torch
+
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
@@ -105,7 +107,7 @@ class FeatureExtractor(nn.Module):
         super().__init__()
 
         # Normalisation layer
-        self.norm = _ImagenetNorm()
+        self.norm = _ImageNetNorm()
 
         # Extract torchvision feature modules, and download pretrained ImageNet
         # weights
@@ -157,7 +159,7 @@ class FeatureExtractor(nn.Module):
         # Make sure greyscale images have three channels and have been
         # normalised with imagenet weights
         x = x.expand(-1, 3, -1, -1)
-        x = x.norm(x)
+        x = self.norm(x)
 
         # Extract named feature maps into a dictionary
         f = {}
@@ -268,7 +270,7 @@ class _BasicBlock(nn.Sequential):
         return super().__init__(*layers)
 
 
-class _ImagenetNorm(nn.Module):
+class _ImageNetNorm(nn.Module):
     """Performs ImageNet mean and standard deviation normalisation
     """
 
@@ -277,12 +279,13 @@ class _ImagenetNorm(nn.Module):
         mean=[0.485, 0.456, 0.406],
         std=[0.485, 0.456, 0.406],
     ):
+        super().__init__()
         self.mean = mean
         self.std = std
 
     def forward(self, x):
         x = x.clone()
-        for idx, (mean, std) in enumerate(self.mean, self.std):
+        for idx, (mean, std) in enumerate(zip(self.mean, self.std)):
             x[:, idx] -= mean
             x[:, idx] /= std
-        return
+        return x
