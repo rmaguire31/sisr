@@ -96,15 +96,24 @@ class Tester:
             checkpoint_paths = sorted(glob.glob(checkpoint_glob))
             if checkpoint_paths:
                 checkpoint_path = checkpoint_paths[-1]
+                checkpoint_iter = None
             else:
                 checkpoint_path = None
-        else:
-            # Specified checkpoint
+                checkpoint_iter = None
+
+        # Specified checkpoint
+        elif isinstance(options.checkpoint, str):
             checkpoint_path = os.path.join(self.log_dir, options.checkpoint)
+            checkpoint_iter = None
+        elif isinstance(options.checkpoint, int):
+            checkpoint_path = None
+            checkpoint_iter = options.checkpoint
 
         # Load checkpoint
         if checkpoint_path is not None:
             self.load_checkpoint(checkpoint_path)
+        elif checkpoint_iter is not None:
+            self.load_checkpoint(iteration=checkpoint_iter)
 
         # Avoid polluting log with deprecation warninings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
