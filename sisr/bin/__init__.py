@@ -86,6 +86,11 @@ def build_parser():
         help="Checkpoint file to load.")
 
     parser.add_argument(
+        '--checkpoint_idx',
+        dest='checkpoint', type=int, required=False,
+        help="Checkpoint file to load.")
+
+    parser.add_argument(
         '--data_dir',
         type=str, required=True,
         help="Path to directory containing dataset.")
