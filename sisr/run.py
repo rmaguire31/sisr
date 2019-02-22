@@ -104,8 +104,8 @@ class Tester:
                 checkpoint_iter = None
 
         # Specified checkpoint
-        elif isinstance(options.checkpoint, str):
-            checkpoint_path = os.path.join(self.log_dir, options.checkpoint)
+        elif os.path.isfile(options.checkpoint):
+            checkpoint_path = options.checkpoint
             checkpoint_iter = None
         elif isinstance(options.checkpoint, int):
             checkpoint_path = None
