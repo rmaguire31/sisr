@@ -43,6 +43,7 @@ class Tester:
         super().__init__()
 
         # Runtime options
+        checkpoint = options.checkpoint
         self.device = options.device
         batch_size = options.batch_size
         input_size = options.input_size
@@ -71,6 +72,7 @@ class Tester:
                     "version %r" % (__version__, options.__version__))
 
         # Restore some options
+        options.checkpoint = checkpoint
         options.device = self.device
         options.output_dir = self.output_dir
         options.log_dir = self.log_dir
