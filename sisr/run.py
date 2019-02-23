@@ -618,9 +618,21 @@ class Trainer(Tester):
             desc='Running %s' % type(self).__name__,
             ncols=TQDM_WIDTH,
         ):
+            # Pretrain without discriminator
+            if self.epoch < self.pretrain_epochs:
+                self.discriminator = False
+            elif self.epoch == self.pretrain_epochs:
+                self.discriminator = discriminator
+
             # Save our progress
             self.save_checkpoint(iteration=self.epoch)
 
+            # Advance learning rate schedule
+            self.lr_scheduler.step()
+            if discriminator:
+                self.discriminator_lr_scheduler.step()
+
+            # Log learning rate
             self.save_metric({
                 'chart': "Learning rate",
                 'axis': "Epoch",
@@ -633,20 +645,9 @@ class Trainer(Tester):
                     'x': self.epoch,
                     'y': self.discriminator_lr_scheduler.get_lr()[0]})
 
-            # Pretrain without discriminator
-            if self.epoch < self.pretrain_epochs:
-                self.discriminator = False
-            elif self.epoch == self.pretrain_epochs:
-                self.discriminator = discriminator
-
             # Train and validate each epoch
             self.train()
             self.validate()
-
-            # Advance learning rate schedule
-            self.lr_scheduler.step()
-            if discriminator:
-                self.discriminator_lr_scheduler.step()
 
         # Test final model
         self.test()
