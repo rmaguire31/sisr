@@ -201,7 +201,7 @@ class Tester:
     @property
     def img_dir(self):
         img_dir = os.path.join(self.log_dir, 'test_images-%010d' % self.epoch)
-        os.path.makedirs(img_dir, exist_ok=True)
+        os.makedirs(img_dir, exist_ok=True)
         return img_dir
 
     @property
