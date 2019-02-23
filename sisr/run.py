@@ -5,6 +5,7 @@ import json
 import os
 import glob
 import logging
+import tarfile
 import warnings
 
 import torch
@@ -185,13 +186,29 @@ class Tester:
         self.metric_file = os.path.join(self.output_dir, 'metrics.json')
         self._metrics = set()
 
+        # Epoch
+        self.epoch = 0
+
     @property
     def checkpoint(self):
         """Builds checkpoint from the state dict of the various components
         """
         checkpoint = {}
+        checkpoint['epoch'] = self.epoch
         checkpoint['model_state_dict'] = self.model.state_dict()
         return checkpoint
+
+    @property
+    def img_dir(self):
+        img_dir = os.path.join(self.log_dir, 'test_images-%010d' % self.epoch)
+        os.path.makedirs(img_dir, exist_ok=True)
+        return img_dir
+
+    @property
+    def img_tar(self):
+        return os.path.join(
+            self.output_dir,
+            os.path.basename(self.img_dir) + '.tar.gz')
 
     def load_checkpoint(self, checkpoint_path=None, iteration=None):
         """Loads checkpoint into the state dict of the various components
@@ -201,6 +218,8 @@ class Tester:
                 self.log_dir, 'checkpoint-%010d.pth' % iter)
         logger.info("Loading checkpoint from '%s'", checkpoint_path)
         checkpoint = torch.load(checkpoint_path)
+        if 'epoch' in checkpoint:
+            self.epoch = checkpoint['epoch']
         if 'model_state_dict' in checkpoint:
             self.model.load_state_dict(checkpoint['model_state_dict'])
         return checkpoint
@@ -239,7 +258,7 @@ class Tester:
         """Save grid of bicubic scaled input, output and target
         """
         if filename is None:
-            filename = os.path.join(self.output_dir, '%05d.png' % iteration)
+            filename = os.path.join(self.img_dir, '%05d.png' % iteration)
 
         # Copy tensors to CPU, removing batch dimension
         input = input.cpu()
@@ -298,6 +317,9 @@ class Tester:
                         'axis': "Example",
                         'x': iteration,
                         'y': ssim_metric.item()})
+
+        with tarfile.open(self.img_tar, 'w:gz') as tar:
+            tar.add(self.img_dir)
 
     run = test
 
@@ -387,7 +409,6 @@ class Trainer(Tester):
                 gamma=options.step_gamma)
 
         # Epoch settings
-        self.epoch = 0
         self.max_epochs = options.max_epochs
         self.pretrain_epochs = options.pretrain_epochs
 
@@ -398,7 +419,6 @@ class Trainer(Tester):
         checkpoint = super().checkpoint
 
         # Basic training components
-        checkpoint['epoch'] = self.epoch
         checkpoint['optimiser_state_dict'] = self.optimiser.state_dict()
         checkpoint['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
 
@@ -420,8 +440,6 @@ class Trainer(Tester):
         checkpoint = super().load_checkpoint(checkpoint_path)
 
         # Basic training components
-        if 'epoch' in checkpoint:
-            self.epoch = checkpoint['epoch']
         if 'optimiser_state_dict' in checkpoint:
             self.optimiser.load_state_dict(checkpoint['optimiser_state_dict'])
         if 'lr_scheduler_state_dict' in checkpoint:
