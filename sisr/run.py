@@ -214,7 +214,7 @@ class Tester:
         """Loads checkpoint into the state dict of the various components
         """
         if checkpoint_path is None:
-            if iteration is not None:
+            if iteration is None:
                 raise ValueError(
                     "Must specify one of 'checkpoint_path' or 'iteration'")
 
@@ -222,10 +222,9 @@ class Tester:
                 self.log_dir, 'checkpoint-%010d.pth' % iteration)
 
         logger.info("Loading checkpoint from '%s'", checkpoint_path)
-        if os.path.isfile(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path)
-        else:
+        if not os.path.isfile(checkpoint_path):
             raise FileNotFoundError("No such checkpoint: %r", checkpoint_path)
+        checkpoint = torch.load(checkpoint_path)
 
         if 'epoch' in checkpoint:
             self.epoch = checkpoint['epoch']
