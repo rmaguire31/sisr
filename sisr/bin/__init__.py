@@ -62,7 +62,7 @@ class _TqdmHandler(logging.StreamHandler):
             self.flush()
         except (KeyboardInterrupt, SystemExit):
             raise
-        except:
+        except:  # noqa: E722
             self.handleError(record)
 
 
