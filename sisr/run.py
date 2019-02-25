@@ -214,10 +214,19 @@ class Tester:
         """Loads checkpoint into the state dict of the various components
         """
         if checkpoint_path is None:
+            if iteration is not None:
+                raise ValueError(
+                    "Must specify one of 'checkpoint_path' or 'iteration'")
+
             checkpoint_path = os.path.join(
-                self.log_dir, 'checkpoint-%010d.pth' % iter)
+                self.log_dir, 'checkpoint-%010d.pth' % iteration)
+
         logger.info("Loading checkpoint from '%s'", checkpoint_path)
-        checkpoint = torch.load(checkpoint_path)
+        if os.path.isfile(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path)
+        else:
+            raise FileNotFoundError("No such checkpoint: %r", checkpoint_path)
+
         if 'epoch' in checkpoint:
             self.epoch = checkpoint['epoch']
         if 'model_state_dict' in checkpoint:
@@ -434,10 +443,10 @@ class Trainer(Tester):
 
         return checkpoint
 
-    def load_checkpoint(self, checkpoint_path):
+    def load_checkpoint(self, *args, **kwargs):
         """Loads checkpoint into the state dict of the various components
         """
-        checkpoint = super().load_checkpoint(checkpoint_path)
+        checkpoint = super().load_checkpoint(*args, **kwargs)
 
         # Basic training components
         if 'optimiser_state_dict' in checkpoint:
