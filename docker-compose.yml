@@ -37,6 +37,15 @@ services:
       '--output_dir', '/artifacts/pa',
     ]
 
+  test_ea:
+    extends: test_2
+    command: [
+       'test.py',
+       '--data_dir', '/storage/data/dataset',
+       '--log_dir', '/storage/logs/ea',
+       '--output_dir', '/artifacts/ea',
+    ]
+
   train_2:
     extends: test_2
     command: [
@@ -74,6 +83,21 @@ services:
       '--log_dir', '/storage/logs/pa',
       '--loss_configuration', '{"P": {"conv2_2": 2e-1, "conv5_4": 2e-2}, "A": 1}',
       '--output_dir', '/artifacts/pa',
+      '--weight_norm',
+    ]
+
+  train_ea:
+    extends: test_ea
+    command: [
+      'train.py',
+      '--data_dir', '/storage/data/dataset',
+      '--discriminator_lr', '1e-3',
+      '--input_size', '48', '48',
+      '--learning_rate', '1e-3',
+      '--log_dir', '/storage/logs/ea',
+      '--loss_configuration', '{"E": 1, "A": 1}',
+      '--output_dir', '/artifacts/ea',
+      '--pretrain_epochs', '1',
       '--weight_norm',
     ]
 

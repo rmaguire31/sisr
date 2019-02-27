@@ -558,7 +558,7 @@ class Trainer(Tester):
             self.optimiser.zero_grad()
 
             # Backward pass
-            losses['generator'].backward()
+            losses['generator'].backward(retain_graph=self.discriminator)
 
             # Update parameters
             self.optimiser.step()
