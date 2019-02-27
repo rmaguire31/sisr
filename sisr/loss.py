@@ -94,9 +94,9 @@ class CombinedContentLoss(nn.Module):
                                                      self.feature_names)
 
         for feature_name, weight in self.contextual_weights.items():
-            loss -= weight * torch.log(_contextual_similarity(
+            loss += weight * _contextual_loss(
                 output_features[feature_name],
-                target_features[feature_name]))
+                target_features[feature_name])
 
         for feature_name, weight in self.perceptual_weights.items():
             loss += weight * F.mse_loss(
@@ -106,65 +106,54 @@ class CombinedContentLoss(nn.Module):
         return loss
 
 
-def _contextual_similarity(
-    outputs,
-    targets,
-    eps1=1e-8,
-    eps2=1e-5,
-    h=1,
-    reduction='mean'
-):
+def _contextual_similarity(x, y, eps1=1e-8, eps2=1e-5, h=0.5):
     """Contextual similarity metric
 
     References:
         Mechrez et al. (2018) arXiv:1803.02077
     """
-    # Apply operation batchwise
-    batch_size, num_features, *_ = outputs.size()
-    C = torch.zeros(batch_size)
-    for i in range(batch_size):
+    N, C, H, W = x.size()
 
-        # Two collections of vectors with order num_features
-        X = outputs[i].view(num_features, -1).t()
-        Y = targets[i].view(num_features, -1).t()
+    mu_y = y.mean(dim=3).mean(dim=2).mean(dim=0).reshape(1, -1, 1, 1)
 
-        # Normalise w.r.t mean point in feature space
-        X = X - X.mean(dim=0)
-        Y = Y - Y.mean(dim=0)
+    # Normalise w.r.t mean and l2 norm
+    x = x - mu_y
+    y = y - mu_y
+    x = x / x.norm(p=2, dim=1, keepdim=True).add_(eps1)
+    y = y / y.norm(p=2, dim=1, keepdim=True).add_(eps1)
 
-        num_points, *_ = X.size()
-        dxy = torch.zeros(num_points, num_points)
+    # Vectorised cosine similarity
+    x = x.reshape(N, C, -1)
+    y = y.reshape(N, C, -1)
+    sxy = torch.bmm(x.transpose(1, 2), y)
 
-        # Pairwise matrix of cosine similarities between vectors of X and Y
-        XY_norm = X.norm(p=2, dim=1).mul_(Y.norm(p=2, dim=1)).add_(eps1)
-        for j in range(num_points):
-            dxy[j, :] = torch.mm(X, Y[j, :].view(-1, 1))
-            dxy[j, :] /= XY_norm[j, :]
+    # Cosine similarity to consine distance
+    dxy = 1 - sxy
 
-        # Convert similary to distance
-        dxy = dxy.neg_().add_(1)
+    # Normalise w.r.t row minima
+    dxy_min, _ = dxy.min(dim=2, keepdim=True)
+    dxy_ = dxy / dxy_min.add_(eps2)
 
-        # Normalise w.r.t row minima
-        dxy_min = dxy.min(dim=0).add_(eps2)
-        for j in range(num_points):
-            dxy[j, :] /= dxy_min[j]
+    # Back to similarity and exponentiate
+    wxy = torch.exp((1 - dxy_) / h)
 
-        # Back to similarity and exponentiate
-        dxy = dxy.neg_().add_(1)
-        wxy = dxy.div_(h).exp_()
+    # Normalise w.r.t row sum
+    cxy = wxy / wxy.sum(dim=2, keepdim=True)       # (N, H*W, H*W)
 
-        # Normalise w.r.t row sum
-        wxy_sum = wxy.sum(dim=0)
-        cxy = wxy
-        for j in range(num_points):
-            cxy[j, :] /= wxy_sum[j]
+    # Contextual similarity is average of column maxima
+    cxy_max, _ = cxy.max(dim=1)
+    C = cxy_max.mean(dim=1)
 
-        # Contextual similarity is average of column maxima
-        C[i] = cxy.max(dim=1).mean()
-
-    if reduction == 'mean':
-        C = C.mean()
     return C
+
+
+def _contextual_loss(x, y, reduction='mean'):
+    """Contextual loss
+    """
+    loss = -torch.log(_contextual_similarity(x, y))
+    if reduction == 'mean':
+        loss = loss.mean()
+    return loss
 
 
 def _gram_matrix(outputs):
