@@ -327,7 +327,7 @@ class Tester:
                         'y': ssim_metric.item()})
 
         with tarfile.open(self.img_tar, 'w:gz') as tar:
-            tar.add(self.img_dir)
+            tar.add(self.img_dir, arcname='.')
 
     run = test
 
@@ -472,8 +472,8 @@ class Trainer(Tester):
         self,
         outputs,
         targets,
-        output_predictions=None,
-        target_predictions=None
+        fake_predictions=None,
+        real_predictions=None
     ):
         """Compute all loss criteria
         """
@@ -482,28 +482,34 @@ class Trainer(Tester):
         # Compute content loss
         losses['generator'] = self.content_loss(outputs, targets)
 
-        if output_predictions is not None and target_predictions is not None:
+        if fake_predictions is not None and real_predictions is not None:
 
-            # Compute adversary loss
-            adversary_targets = torch.ones(output_predictions.size())
-            adversary_targets = adversary_targets.to(self.device)
+            # Soft GAN targets
+            #   Salimans et al. (2016) arXiv:1606.03498
+            real_targets = torch.rand(fake_predictions.size()) * 0.5 + 0.7
+            fake_targets = torch.rand(fake_predictions.size()) * 0.3
+            real_targets = real_targets.to(self.device)
+            fake_targets = fake_targets.to(self.device)
+
+            # Compute adversary loss, fool the discriminator
             losses['adversary'] = self.adversary_loss(
-                output_predictions,
-                adversary_targets)
+                fake_predictions,
+                real_targets)
 
             # Compute discriminator loss
-            discriminator_targets = torch.cat((
-                torch.zeros(output_predictions.size()),
-                torch.ones(target_predictions.size())))
-            discriminator_targets = discriminator_targets.to(self.device)
-            losses['discriminator'] = self.discriminator_loss(
-                torch.cat((output_predictions, target_predictions)),
-                discriminator_targets)
+            losses['discriminator real'] = self.discriminator_loss(
+                real_predictions,
+                real_targets)
+            losses['discriminator fake'] = self.discriminator_loss(
+                fake_predictions,
+                fake_targets)
+            losses['discriminator'] = \
+                losses['discriminator real'] + losses['discriminator fake']
 
             # Update generator loss
             losses['content'] = losses['generator']
-            losses['generator'] = losses['content'] + \
-                self.adversary_weight * losses['adversary']
+            losses['generator'] = \
+                losses['content'] + self.adversary_weight * losses['adversary']
 
         return losses
 
@@ -531,38 +537,40 @@ class Trainer(Tester):
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
 
-            # Zero parameter gradients
-            self.optimiser.zero_grad()
-            if self.discriminator:
-                self.discriminator_optimiser.zero_grad()
-
             # Forward pass
             outputs = self.model(inputs)
             if self.discriminator:
-                output_predictions = self.discriminator_model(outputs)
-                target_predictions = self.discriminator_model(targets)
+                fake_predictions = self.discriminator_model(outputs)
+                real_predictions = self.discriminator_model(targets)
             else:
-                output_predictions = None
-                target_predictions = None
+                fake_predictions = None
+                real_predictions = None
 
             # Compute losses
             losses = self.criteria(
                 outputs,
                 targets,
-                output_predictions,
-                target_predictions)
+                fake_predictions,
+                real_predictions)
             logger.debug('Losses: %r', losses)
 
+            # Zero gradients
+            self.optimiser.zero_grad()
+
             # Backward pass
-            if self.discriminator:
-                losses['generator'].backward(retain_graph=True)
-                losses['discriminator'].backward()
-            else:
-                losses['generator'].backward()
+            losses['generator'].backward()
 
             # Update parameters
             self.optimiser.step()
+
             if self.discriminator:
+                # Zero gradients for discriminator
+                self.discriminator_optimiser.zero_grad()
+
+                # Backward pass for discriminator
+                losses['discriminator'].backward()
+
+                # Update parameters for the discriminator
                 self.discriminator_optimiser.step()
 
             # Compute running means
@@ -605,18 +613,18 @@ class Trainer(Tester):
                 # Forward pass
                 outputs = self.model(inputs)
                 if self.discriminator:
-                    output_predictions = self.discriminator_model(outputs)
-                    target_predictions = self.discriminator_model(targets)
+                    fake_predictions = self.discriminator_model(outputs)
+                    real_predictions = self.discriminator_model(targets)
                 else:
-                    output_predictions = None
-                    target_predictions = None
+                    fake_predictions = None
+                    real_predictions = None
 
                 # Compute losses
                 losses = self.criteria(
                     outputs,
                     targets,
-                    output_predictions,
-                    target_predictions)
+                    fake_predictions,
+                    real_predictions)
 
                 # Compute running means
                 for k in losses:
