@@ -120,42 +120,50 @@ def _contextual_similarity(
         Mechrez et al. (2018) arXiv:1803.02077
     """
     # Apply operation batchwise
-    C = []
-    for output, target in zip(outputs, targets):
-        num_features, *_ = output.size()
+    batch_size, num_features, *_ = outputs.size()
+    C = torch.zeros(batch_size)
+    for i in range(batch_size):
 
         # Two collections of vectors with order num_features
-        X = output.view(num_features, -1).t()
-        Y = target.view(num_features, -1).t()
+        X = outputs[i].view(num_features, -1).t()
+        Y = targets[i].view(num_features, -1).t()
 
         # Normalise w.r.t mean point in feature space
         X = X - X.mean(dim=0)
         Y = Y - Y.mean(dim=0)
 
-        # Pairwise matrix of cosine distances between vectors of X and Y
-        dxy = torch.stack([
-            1 - torch.mm(X, y.view(-1, 1)).view(-1) / (
-                X.norm(p=2, dim=1) * y.norm(p=2) + eps1)
-            for y in Y])
+        num_points, *_ = X.size()
+        dxy = torch.zeros(num_points, num_points)
 
-        # Normalise w.r.t row minimum
-        dxy_ = dxy / (dxy.min(dim=0)[0] + eps2)
+        # Pairwise matrix of cosine similarities between vectors of X and Y
+        XY_norm = X.norm(p=2, dim=1).mul_(Y.norm(p=2, dim=1)).add_(eps1)
+        for j in range(num_points):
+            dxy[j, :] = torch.mm(X, Y[j, :].view(-1, 1))
+            dxy[j, :] /= XY_norm[j, :]
 
-        # Normalised cosine distance to a similary
-        wxy = torch.exp((1 - dxy_) / h)
+        # Convert similary to distance
+        dxy = dxy.neg_().add_(1)
+
+        # Normalise w.r.t row minima
+        dxy_min = dxy.min(dim=0).add_(eps2)
+        for j in range(num_points):
+            dxy[j, :] /= dxy_min[j]
+
+        # Back to similarity and exponentiate
+        dxy = dxy.neg_().add_(1)
+        wxy = dxy.div_(h).exp_()
 
         # Normalise w.r.t row sum
-        cxy = wxy / wxy.sum(dim=0)
+        wxy_sum = wxy.sum(dim=0)
+        cxy = wxy
+        for j in range(num_points):
+            cxy[j, :] /= wxy_sum[j]
 
-        # Contextual similarity is average of column maximums
-        C_ = cxy.max(dim=1)[0].mean()
-        C.append(C_)
+        # Contextual similarity is average of column maxima
+        C[i] = cxy.max(dim=1).mean()
 
-    # Combine batchwise elements
-    C = torch.stack(C)
     if reduction == 'mean':
         C = C.mean()
-
     return C
 
 
