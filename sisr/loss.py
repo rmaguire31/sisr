@@ -119,8 +119,8 @@ def _contextual_similarity(x, y, eps1=1e-8, eps2=1e-5, h=0.5):
     # Normalise w.r.t mean and l2 norm
     x = x - mu_y
     y = y - mu_y
-    x = x / x.norm(p=2, dim=1, keepdim=True).add_(eps1)
-    y = y / y.norm(p=2, dim=1, keepdim=True).add_(eps1)
+    x = x / (x.norm(p=2, dim=1, keepdim=True) + eps1)
+    y = y / (y.norm(p=2, dim=1, keepdim=True) + eps1)
 
     # Vectorised cosine similarity
     x = x.reshape(N, C, -1)
@@ -132,7 +132,7 @@ def _contextual_similarity(x, y, eps1=1e-8, eps2=1e-5, h=0.5):
 
     # Normalise w.r.t row minima
     dxy_min, _ = dxy.min(dim=2, keepdim=True)
-    dxy_ = dxy / dxy_min.add_(eps2)
+    dxy_ = dxy / (dxy_min + eps2)
 
     # Back to similarity and exponentiate
     wxy = torch.exp((1 - dxy_) / h)
