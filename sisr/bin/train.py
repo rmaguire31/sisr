@@ -24,11 +24,6 @@ def build_parser():
         parents=parents)
 
     parser.add_argument(
-        '--accumulation_steps',
-        type=int, default=1,
-        help="Number of times steps to take to process minibatch")
-
-    parser.add_argument(
         '--adam_betas',
         type=float, nargs=2, default=(0.9, 0.999),
         help="Adam coefficients used for computing running averages of "

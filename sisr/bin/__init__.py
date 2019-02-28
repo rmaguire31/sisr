@@ -76,6 +76,11 @@ def build_parser():
     parser = argparse.ArgumentParser(add_help=False)
 
     parser.add_argument(
+        '--accumulation_steps',
+        type=int, default=1,
+        help="Number ofsteps to take to process minibatch.")
+
+    parser.add_argument(
         '--batch_size',
         type=int, default=16,
         help="How many samples per batch to load.")

@@ -45,7 +45,6 @@ class Tester:
 
         # Runtime options
         accumulation_steps = options.accumulation_steps
-        batch_size = options.batch_size
         checkpoint = options.checkpoint
         self.device = options.device
         input_size = options.input_size
@@ -75,7 +74,6 @@ class Tester:
 
         # Restore some options
         options.accumulation_steps = accumulation_steps
-        options.batch_size = batch_size
         options.checkpoint = checkpoint
         options.device = self.device
         options.input_size = input_size
@@ -422,8 +420,10 @@ class Trainer(Tester):
         # Epoch settings
         self.max_epochs = options.max_epochs
         self.pretrain_epochs = options.pretrain_epochs
-        self.accumulation_size = \
-            options.batch_size // options.accumulation_steps
+
+        # Accumulation reduces memory usage without impacting training
+        self.accumulation_steps = options.accumulation_steps
+        self.accumulation_size = options.batch_size // self.accumulation_steps
 
     @property
     def checkpoint(self):
@@ -484,7 +484,8 @@ class Trainer(Tester):
         losses = {}
 
         # Compute content loss
-        losses['generator'] = self.content_loss(outputs, targets)
+        losses['generator'] = \
+            self.content_loss(outputs, targets) / self.accumulation_steps
 
         if fake_predictions is not None:
 
@@ -495,7 +496,7 @@ class Trainer(Tester):
             # Compute adversary loss, fool the discriminator
             losses['adversary'] = self.adversary_loss(
                 fake_predictions,
-                real_targets)
+                real_targets) / self.accumulation_steps
 
             # Update generator loss
             losses['content'] = losses['generator']
@@ -523,10 +524,10 @@ class Trainer(Tester):
         # Compute discriminator loss
         losses['discriminator real'] = self.discriminator_loss(
             real_predictions,
-            real_targets)
+            real_targets) / self.accumulation_steps
         losses['discriminator fake'] = self.discriminator_loss(
             fake_predictions,
-            fake_targets)
+            fake_targets) / self.accumulation_steps
         losses['discriminator'] = \
             losses['discriminator real'] + losses['discriminator fake']
 
