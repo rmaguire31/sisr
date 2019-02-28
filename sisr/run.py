@@ -419,6 +419,8 @@ class Trainer(Tester):
         # Epoch settings
         self.max_epochs = options.max_epochs
         self.pretrain_epochs = options.pretrain_epochs
+        self.accumulation_size = \
+            options.batch_size // options.accumulation_steps
 
     @property
     def checkpoint(self):
@@ -473,7 +475,6 @@ class Trainer(Tester):
         outputs,
         targets,
         fake_predictions=None,
-        real_predictions=None
     ):
         """Compute all loss criteria
         """
@@ -482,29 +483,17 @@ class Trainer(Tester):
         # Compute content loss
         losses['generator'] = self.content_loss(outputs, targets)
 
-        if fake_predictions is not None and real_predictions is not None:
+        if fake_predictions is not None:
 
             # Soft GAN targets
             #   Salimans et al. (2016) arXiv:1606.03498
             real_targets = torch.rand(fake_predictions.size()) * 0.5 + 0.7
-            fake_targets = torch.rand(fake_predictions.size()) * 0.3
             real_targets = real_targets.to(self.device)
-            fake_targets = fake_targets.to(self.device)
 
             # Compute adversary loss, fool the discriminator
             losses['adversary'] = self.adversary_loss(
                 fake_predictions,
                 real_targets)
-
-            # Compute discriminator loss
-            losses['discriminator real'] = self.discriminator_loss(
-                real_predictions,
-                real_targets)
-            losses['discriminator fake'] = self.discriminator_loss(
-                fake_predictions,
-                fake_targets)
-            losses['discriminator'] = \
-                losses['discriminator real'] + losses['discriminator fake']
 
             # Update generator loss
             losses['content'] = losses['generator']
@@ -512,6 +501,32 @@ class Trainer(Tester):
                 losses['content'] + self.adversary_weight * losses['adversary']
 
         return losses
+
+    def discriminator_criteria(
+        self,
+        fake_predictions,
+        real_predictions,
+    ):
+        """Compute discriminator loss criteria
+        """
+        losses = {}
+
+        # Soft GAN targets
+        #   Salimans et al. (2016) arXiv:1606.03498
+        real_targets = torch.rand(fake_predictions.size()) * 0.5 + 0.7
+        fake_targets = torch.rand(fake_predictions.size()) * 0.3
+        real_targets = real_targets.to(self.device)
+        fake_targets = fake_targets.to(self.device)
+
+        # Compute discriminator loss
+        losses['discriminator real'] = self.discriminator_loss(
+            real_predictions,
+            real_targets)
+        losses['discriminator fake'] = self.discriminator_loss(
+            fake_predictions,
+            fake_targets)
+        losses['discriminator'] = \
+            losses['discriminator real'] + losses['discriminator fake']
 
     def train(self):
         """Train models for one epoch of the training set
@@ -527,50 +542,88 @@ class Trainer(Tester):
         mean_losses = {}
 
         # Train for one epoch of training set
-        for iteration, (inputs, targets) in enumerate(tqdm(
+        for iteration, (inputs_batch, targets_batch) in enumerate(tqdm(
             self.training_loader,
             unit='minibatch',
             desc="Training model",
             ncols=TQDM_WIDTH,
         )):
-            # Copy tensors to target device
-            inputs = inputs.to(self.device)
-            targets = targets.to(self.device)
-
-            # Forward pass
-            outputs = self.model(inputs)
-            if self.discriminator:
-                fake_predictions = self.discriminator_model(outputs)
-                real_predictions = self.discriminator_model(targets)
-            else:
-                fake_predictions = None
-                real_predictions = None
-
-            # Compute losses
-            losses = self.criteria(
-                outputs,
-                targets,
-                fake_predictions,
-                real_predictions)
-            logger.debug('Losses: %r', losses)
+            # Accumulate losses for logging purposes
+            total_losses = {}
 
             # Zero gradients
             self.optimiser.zero_grad()
 
-            # Backward pass
-            losses['generator'].backward(retain_graph=self.discriminator)
+            # Process minibatch in multiple forward passes
+            for inputs, targets in zip(
+                inputs_batch.split(self.accumulation_size),
+                targets_batch.split(self.accumulation_size),
+            ):
+                # Copy tensors to target device
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
+
+                # Forward pass
+                outputs = self.model(inputs)
+                if self.discriminator:
+                    fake_predictions = self.discriminator_model(outputs)
+                else:
+                    fake_predictions = None
+
+                # Compute losses
+                losses = self.criteria(
+                    outputs=outputs,
+                    targets=targets,
+                    fake_predictions=fake_predictions)
+                logger.debug('Losses: %r', losses)
+
+                # Backward pass
+                losses['generator'].backward()
+
+                with torch.no_grad():
+                    for k in losses:
+                        total_losses[k] = total_losses.get(k, 0)
+                        total_losses[k] += losses[k]
 
             # Update parameters
             self.optimiser.step()
 
+            # Train discriminator if enabled
             if self.discriminator:
-                # Zero gradients for discriminator
+
+                # Zero gradients
                 self.discriminator_optimiser.zero_grad()
 
-                # Backward pass for discriminator
-                losses['discriminator'].backward()
+                # Process minibatch in multiple forward passes
+                for inputs, targets in zip(
+                    inputs_batch.split(self.accumulation_size),
+                    targets_batch.split(self.accumulation_size),
+                ):
+                    # Copy tensors to target device
+                    inputs = inputs.to(self.device)
+                    targets = targets.to(self.device)
 
-                # Update parameters for the discriminator
+                    # Forward pass
+                    with torch.no_grad():
+                        outputs = self.model(inputs)
+                    fake_predictions = self.discriminator_model(outputs)
+                    real_predictions = self.discriminator_model(targets)
+
+                    # Compute losses
+                    losses = self.discriminator_criteria(
+                        fake_predictions,
+                        real_predictions)
+                    logger.debug('Losses: %r', losses)
+
+                    # Backward pass
+                    losses['discriminator'].backward()
+
+                    with torch.no_grad():
+                        for k in losses:
+                            total_losses[k] = total_losses.get(k, 0)
+                            total_losses[k] += losses[k]
+
+                # Update parameters
                 self.discriminator_optimiser.step()
 
             # Compute running means
@@ -578,7 +631,7 @@ class Trainer(Tester):
                 for k in losses:
                     mean_losses[k] = mean_losses.get(k, 0)
                     mean_losses[k] *= iteration / (iteration + 1)
-                    mean_losses[k] += losses[k] / (iteration + 1)
+                    mean_losses[k] += total_losses[k] / (iteration + 1)
 
         for k in mean_losses:
             self.save_metric({
@@ -600,37 +653,51 @@ class Trainer(Tester):
         # Calculate mean losses across validation set
         with torch.no_grad():
             mean_losses = {}
-            for iteration, (inputs, targets) in enumerate(tqdm(
+            for iteration, (inputs_batch, targets_batch) in enumerate(tqdm(
                 self.validation_loader,
                 unit='minibatch',
                 desc="Validating model",
                 ncols=TQDM_WIDTH,
             )):
-                # Copy tensors to target device
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
+                total_losses = {}
 
-                # Forward pass
-                outputs = self.model(inputs)
-                if self.discriminator:
-                    fake_predictions = self.discriminator_model(outputs)
-                    real_predictions = self.discriminator_model(targets)
-                else:
-                    fake_predictions = None
-                    real_predictions = None
+                # Process minibatch in multiple forward passes
+                for inputs, targets in zip(
+                    inputs_batch.split(self.accumulation_size),
+                    targets_batch.split(self.accumulation_size),
+                ):
+                    # Copy tensors to target device
+                    inputs = inputs.to(self.device)
+                    targets = targets.to(self.device)
 
-                # Compute losses
-                losses = self.criteria(
-                    outputs,
-                    targets,
-                    fake_predictions,
-                    real_predictions)
+                    # Forward pass
+                    outputs = self.model(inputs)
+                    if self.discriminator:
+                        fake_predictions = self.discriminator_model(outputs)
+                        real_predictions = self.discriminator_model(targets)
+                    else:
+                        fake_predictions = None
+
+                    # Compute losses
+                    losses = self.criteria(
+                        outputs,
+                        targets,
+                        fake_predictions)
+                    if self.discriminator:
+                        discriminator_losses = self.discriminator_criteria(
+                            fake_predictions,
+                            real_predictions)
+                        losses.update(discriminator_losses)
+
+                    for k in losses:
+                        total_losses[k] = total_losses.get(k, 0)
+                        total_losses[k] += losses[k]
 
                 # Compute running means
                 for k in losses:
                     mean_losses[k] = mean_losses.get(k, 0)
                     mean_losses[k] *= iteration / (iteration + 1)
-                    mean_losses[k] += losses[k] / (iteration + 1)
+                    mean_losses[k] += total_losses[k] / (iteration + 1)
 
         for k in mean_losses:
             self.save_metric({
