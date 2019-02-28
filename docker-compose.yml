@@ -59,7 +59,7 @@ services:
     extends: test_c
     command: [
       'train.py',
-      '--accumulation_steps', '4',
+      '--accumulation_steps', '16',
       '--data_dir', '/storage/data/dataset',
       '--input_size', '48', '48',
       '--learning_rate', '1e-3',

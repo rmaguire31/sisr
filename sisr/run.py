@@ -44,9 +44,10 @@ class Tester:
         super().__init__()
 
         # Runtime options
+        accumulation_steps = options.accumulation_steps
+        batch_size = options.batch_size
         checkpoint = options.checkpoint
         self.device = options.device
-        batch_size = options.batch_size
         input_size = options.input_size
         num_workers = options.num_workers
 
@@ -73,14 +74,16 @@ class Tester:
                     "version %r" % (__version__, options.__version__))
 
         # Restore some options
+        options.accumulation_steps = accumulation_steps
+        options.batch_size = batch_size
         options.checkpoint = checkpoint
         options.device = self.device
-        options.output_dir = self.output_dir
-        options.log_dir = self.log_dir
-        options.data_dir = data_dir
-        options.batch_size = batch_size
         options.input_size = input_size
         options.num_workers = num_workers
+
+        options.data_dir = data_dir
+        options.log_dir = self.log_dir
+        options.output_dir = self.output_dir
 
         # Save options to file, along with package version number
         logger.info("Saving options to '%s'", options_file)
@@ -485,9 +488,8 @@ class Trainer(Tester):
 
         if fake_predictions is not None:
 
-            # Soft GAN targets
-            #   Salimans et al. (2016) arXiv:1606.03498
-            real_targets = torch.rand(fake_predictions.size()) * 0.5 + 0.7
+            # GAN targets
+            real_targets = torch.ones(fake_predictions.size())
             real_targets = real_targets.to(self.device)
 
             # Compute adversary loss, fool the discriminator
@@ -527,6 +529,8 @@ class Trainer(Tester):
             fake_targets)
         losses['discriminator'] = \
             losses['discriminator real'] + losses['discriminator fake']
+
+        return losses
 
     def train(self):
         """Train models for one epoch of the training set
