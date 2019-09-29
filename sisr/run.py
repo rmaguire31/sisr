@@ -177,6 +177,7 @@ class Tester:
         self.model = sisr.models.Sisr(
             num_features=options.num_features,
             num_resblocks=options.num_resblocks,
+            multiply_resblocks=options.multiply_resblocks,
             scale_factor=options.scale_factor,
             upsample=options.upsample,
             weight_norm=options.weight_norm)

@@ -21,6 +21,7 @@ class Sisr(nn.Module):
     def __init__(
         self,
         kernel_size=3,
+        multiply_resblocks=1,
         num_channels=1,
         num_features=64,
         num_resblocks=8,
@@ -42,7 +43,10 @@ class Sisr(nn.Module):
 
         # Residual body
         self.body = nn.Sequential(*[
-            _ResidualBlock(num_features=num_features, weight_norm=weight_norm)
+            _ResidualBlock(
+                multiply=multiply_resblocks,
+                num_features=num_features,
+                weight_norm=weight_norm)
             for _ in range(num_resblocks)])
 
         # Upsample features, then feature space to colour space
@@ -210,6 +214,7 @@ class _ResidualBlock(nn.Module):
     def __init__(
         self,
         kernel_size=3,
+        multiply=1,
         num_features=64,
         weight_norm=True
     ):
@@ -229,14 +234,18 @@ class _ResidualBlock(nn.Module):
         if weight_norm:
             conv1 = nn.utils.weight_norm(conv1)
             conv2 = nn.utils.weight_norm(conv2)
+        self.multiply = multiply
         self.body = nn.Sequential(conv1, relu1, conv2)
 
     def forward(self, x):
-        return x + self.body(x)
+        if self.multiply == 1:
+            return x + self.body(x)
+        else:
+            return x + self.body(x) * self.multiply
 
 
 class _BasicBlock(nn.Sequential):
-    """Downscaling block for discriminator
+    """Downscale_factor block for discriminator
     """
 
     def __init__(

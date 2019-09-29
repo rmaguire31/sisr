@@ -87,6 +87,11 @@ def build_parser():
         help="Training is automatically stopped after this many epochs.")
 
     parser.add_argument(
+        '--multiply_resblocks',
+        type=int, default=1,
+        help="Residual block multiply factor.")
+
+    parser.add_argument(
         '--optimiser', '--optimizer',
         type=str.lower, default='adam', choices={'adam', 'sgd'},
         help="Method for stochastic optimisation. For details on Adam, see "
