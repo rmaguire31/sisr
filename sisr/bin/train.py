@@ -88,7 +88,7 @@ def build_parser():
 
     parser.add_argument(
         '--multiply_resblocks',
-        type=int, default=1,
+        type=float, default=1.0,
         help="Residual block multiply factor.")
 
     parser.add_argument(
